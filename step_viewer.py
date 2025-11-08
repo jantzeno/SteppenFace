@@ -6,6 +6,8 @@ Displays STEP files using OpenCASCADE's native BREP representation
 
 import sys
 from pathlib import Path
+import tkinter as tk
+from tkinter import ttk
 
 try:
     from OCC.Core.STEPControl import STEPControl_Reader
@@ -54,8 +56,12 @@ def assign_random_colors_to_solids(shape, display):
     Args:
         shape: The TopoDS_Shape containing solids
         display: The display object
+
+    Returns:
+        List of tuples: [(solid, color, ais_shape), ...]
     """
     palette = get_colorblind_friendly_palette()
+    parts_list = []
 
     # Explore and collect all solids
     explorer = TopExp_Explorer(shape, TopAbs_SOLID)
@@ -85,7 +91,9 @@ def assign_random_colors_to_solids(shape, display):
         display.Context.UpdateCurrentViewer()
         display.FitAll()
         display.Repaint()
-        return
+
+        parts_list.append((shape, palette[0], ais_shape))
+        return parts_list
 
     # Shuffle the palette to get random color assignment
     random.shuffle(palette)
@@ -108,12 +116,17 @@ def assign_random_colors_to_solids(shape, display):
         material.SetSpecularColor(dark_color)
         ais_shape.SetMaterial(material)
 
+        # Store part info
+        parts_list.append((solid, (r, g, b), ais_shape))
+
     print(f"Assigned colors to {len(solids)} solid(s)")
 
     # Force the display to update and show all shapes immediately
     display.Context.UpdateCurrentViewer()
     display.FitAll()
     display.Repaint()
+
+    return parts_list
 
 
 def load_step_file(filename):
@@ -180,52 +193,98 @@ def display_step_file(filename):
     if shape is None:
         return
 
-    # Initialize the display
-    display, start_display, add_menu, add_function_to_menu = init_display()
+    # Create the Tkinter window and layout FIRST, before initializing display
+    root = tk.Tk()
+    root.title("STEP File Viewer")
+    root.geometry("1024x768")
+    root.configure(borderwidth=0, highlightthickness=0, bg='#111216')
 
-    # Don't set background here - will set it after display is fully initialized
+    # Create a PanedWindow in the root
+    paned_window = tk.PanedWindow(root, orient=tk.HORIZONTAL, bg='#111216',
+                                  sashwidth=5, sashrelief=tk.RAISED,
+                                  borderwidth=0)
+    paned_window.pack(fill=tk.BOTH, expand=True)
 
-    # Remove any canvas border/padding and window borders
-    try:
-        canvas = display._parent
-        root = canvas.winfo_toplevel()
+    # Create left panel for navigation tree
+    left_panel = tk.Frame(paned_window, bg='#1a1b1f', width=250,
+                         borderwidth=0, highlightthickness=0)
 
-        # The canvas is a Frame containing the actual OpenGL widget
-        # Set background of everything to match
-        canvas.configure(borderwidth=0, highlightthickness=0, relief='flat', bg='#111216')
-        root.configure(borderwidth=0, highlightthickness=0, bg='#111216')
+    # Create header label
+    header = tk.Label(left_panel, text="Parts", bg='#1a1b1f', fg='#ffffff',
+                     font=('Arial', 10, 'bold'), anchor='w', padx=10, pady=5)
+    header.pack(fill=tk.X)
 
-        # Configure all children when they exist
-        for child in canvas.winfo_children():
-            try:
-                child.configure(borderwidth=0, highlightthickness=0)
-                if child.winfo_class() != 'Togl':
-                    child.configure(bg='#111216')
-            except:
-                pass
+    # Create separator
+    separator = tk.Frame(left_panel, bg='#2a2b2f', height=1)
+    separator.pack(fill=tk.X)
 
-        # Try to find and hide all root widgets except the canvas
-        for widget in root.winfo_children():
-            if widget != canvas:
-                try:
-                    widget.pack_forget()
-                    widget.grid_forget()
-                    widget.place_forget()
-                except:
-                    pass
+    # Create Treeview for parts list
+    tree_frame = tk.Frame(left_panel, bg='#1a1b1f')
+    tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Ensure Frame fills completely with no gaps
-        canvas.pack_forget()
-        canvas.grid_forget()
-        canvas.place(x=0, y=0, relwidth=1.0, relheight=1.0)
-    except:
-        pass
+    # Configure style for dark theme
+    style = ttk.Style()
+    style.theme_use('clam')
+    style.configure("Dark.Treeview",
+                   background='#1a1b1f',
+                   foreground='#ffffff',
+                   fieldbackground='#1a1b1f',
+                   borderwidth=0,
+                   relief='flat')
+    style.configure("Dark.Treeview.Heading",
+                   background='#2a2b2f',
+                   foreground='#ffffff',
+                   borderwidth=0,
+                   relief='flat')
+    style.map("Dark.Treeview",
+             background=[('selected', '#3a3b3f')],
+             foreground=[('selected', '#ffffff')])
+
+    # Create the tree
+    parts_tree = ttk.Treeview(tree_frame, style="Dark.Treeview", show='tree')
+    parts_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+    # Add scrollbar
+    scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=parts_tree.yview)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    parts_tree.configure(yscrollcommand=scrollbar.set)
+
+    # Create right panel for 3D viewer
+    right_panel = tk.Frame(paned_window, bg='#111216',
+                          borderwidth=0, highlightthickness=0)
+
+    # Add panels to PanedWindow
+    paned_window.add(left_panel, minsize=200, width=250)
+    paned_window.add(right_panel, minsize=400)
+
+    # Force layout update
+    root.update_idletasks()
+
+    # NOW initialize the display in the right panel
+    from OCC.Display.tkDisplay import tkViewer3d
+
+    # Create the 3D viewer in the right panel
+    # tkViewer3d returns the canvas widget itself
+    canvas = tkViewer3d(right_panel)
+
+    # Configure and pack the canvas
+    canvas.configure(borderwidth=0, highlightthickness=0, relief='flat', bg='#111216')
+    canvas.pack(fill=tk.BOTH, expand=True)
+
+    # Wait for the canvas to be visible before accessing the display
+    canvas.wait_visibility()
+
+    # Get the display object from the canvas
+    display = canvas._display
+
+    # Store tree reference for later population
+    display._parts_tree = parts_tree
+
+    print("Navigation panel created successfully")
 
     # Configure mouse button mappings for Tkinter backend:
     # Left button = Rotate, Right button = Pan, Wheel = Zoom
     try:
-        # Get the Tkinter canvas widget
-        canvas = display._parent
         view = display.View
 
         # Track mouse state
@@ -270,14 +329,7 @@ def display_step_file(filename):
             elif event.delta < 0 or event.num == 5:  # Scroll down or Button 5
                 display.ZoomFactor(0.9)
 
-        # Unbind existing mouse handlers (but preserve keyboard handlers)
-        for event in ["<Button-1>", "<B1-Motion>", "<ButtonRelease-1>",
-                      "<Button-2>", "<B2-Motion>", "<ButtonRelease-2>",
-                      "<Button-3>", "<B3-Motion>", "<ButtonRelease-3>",
-                      "<MouseWheel>", "<Button-4>", "<Button-5>"]:
-            canvas.unbind(event)
-
-        # Bind new mouse handlers
+        # Bind mouse handlers
         # Left button (Button-1) for rotation
         canvas.bind("<Button-1>", on_left_press)
         canvas.bind("<B1-Motion>", on_left_motion)
@@ -300,8 +352,7 @@ def display_step_file(filename):
 
         def on_key_q(event):
             """'q' key - quit"""
-            import sys
-            sys.exit(0)
+            root.quit()
 
         # Bind keyboard commands
         canvas.bind("<f>", on_key_f)
@@ -318,7 +369,34 @@ def display_step_file(filename):
 
     # Display the shape with randomized colorblind-friendly colors for each solid
     # This uses the actual BREP geometry, not triangulated meshes
-    assign_random_colors_to_solids(shape, display)
+    parts_list = assign_random_colors_to_solids(shape, display)
+
+    # Populate the navigation tree with parts
+    try:
+        if hasattr(display, '_parts_tree'):
+            tree = display._parts_tree
+
+            # Add root node
+            root_node = tree.insert('', 'end', text=f'Model ({len(parts_list)} part{"s" if len(parts_list) != 1 else ""})',
+                                   open=True)
+
+            # Add each part
+            for i, (solid, color, ais_shape) in enumerate(parts_list):
+                # Convert color to hex for display
+                r, g, b = color
+                hex_color = f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+
+                # Create color indicator (using Unicode square)
+                color_indicator = '■'
+
+                # Add part to tree
+                part_name = f'{color_indicator} Part {i+1}'
+                tree.insert(root_node, 'end', text=part_name, tags=(f'part_{i}',))
+
+                # Configure tag color
+                tree.tag_configure(f'part_{i}', foreground=hex_color)
+    except Exception as e:
+        print(f"Warning: Could not populate parts tree: {e}")
 
     # Set background color after display is fully initialized
     # Use sRGB color space explicitly
@@ -346,11 +424,8 @@ def display_step_file(filename):
     print("  - 'f': Fit all")
     print("  - 'q' or ESC: Quit")
 
-    # Final update to ensure everything is rendered before starting the loop
-    display.View.Redraw()
-
-    # Start the display loop
-    start_display()
+    # Start the Tkinter event loop
+    root.mainloop()
 
 
 def main():

@@ -8,7 +8,9 @@ A Python program to import and display STEP files with solid CAD representation 
 - Displays models using BREP (Boundary Representation) geometry
 - NO mesh triangulation - maintains true CAD solid information
 - Interactive 3D viewer with rotation, pan, and zoom
+- **Side navigation panel** with hierarchical parts tree
 - Randomized colorblind-friendly colors for each part (vibrant, pleasant palette)
+- Color-coded parts list showing each part with its assigned color
 - Colors are distinguishable for deuteranopia, protanopia, and tritanopia
 - Shows solid and face counts
 
