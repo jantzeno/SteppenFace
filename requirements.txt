@@ -1,1 +1,1 @@
-pythonocc-core>=7.7.0
+pythonocc-core>=7.9.0
