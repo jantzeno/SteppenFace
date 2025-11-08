@@ -8,6 +8,8 @@ A Python program to import and display STEP files with solid CAD representation 
 - Displays models using BREP (Boundary Representation) geometry
 - NO mesh triangulation - maintains true CAD solid information
 - Interactive 3D viewer with rotation, pan, and zoom
+- Randomized colorblind-friendly colors for each part (vibrant, pleasant palette)
+- Colors are distinguishable for deuteranopia, protanopia, and tritanopia
 - Shows solid and face counts
 
 ## Installation
@@ -51,6 +53,7 @@ python step_viewer.py model.step
 This viewer uses:
 - **pythonocc-core**: Python wrapper for OpenCASCADE
 - **OpenCASCADE**: Professional CAD kernel with BREP solid modeling
-- **AIS_Shaded mode**: Displays actual surface geometry, not triangulated meshes
+- **Solid shaded rendering**: Displays actual surface geometry, not triangulated meshes
+- **Dark background**: rgb(17, 18, 22) for comfortable viewing
 
 The viewer maintains the original CAD topology and geometry, making it suitable for precision engineering applications.
