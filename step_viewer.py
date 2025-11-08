@@ -17,7 +17,6 @@ try:
 except ImportError:
     print("Error: pythonocc-core is not installed.")
     print("Install it using: conda install -c conda-forge pythonocc-core")
-    print("or: pip install pythonocc-core")
     sys.exit(1)
 
 
@@ -86,13 +85,104 @@ def display_step_file(filename):
         return
 
     # Initialize the display
-    # Note: Mouse controls are configured at the backend level
-    # Default pythonocc-core controls (Qt backend):
-    #   - Left button: Rotate (orbit)
-    #   - Right button: Pan (in Qt backend)
-    #   - Mouse wheel: Zoom
-    # These are the standard CAD navigation controls
     display, start_display, add_menu, add_function_to_menu = init_display()
+
+    # Configure mouse button mappings for Tkinter backend:
+    # Left button = Rotate, Right button = Pan, Wheel = Zoom
+    try:
+        # Get the Tkinter canvas widget
+        canvas = display._parent
+        view = display.View
+
+        # Track mouse state
+        mouse_state = {'start_x': 0, 'start_y': 0, 'button': None}
+
+        def on_left_press(event):
+            """Left mouse button pressed - start rotation"""
+            mouse_state['start_x'] = event.x
+            mouse_state['start_y'] = event.y
+            mouse_state['button'] = 1
+            view.StartRotation(event.x, event.y)
+
+        def on_left_motion(event):
+            """Left mouse button dragged - rotate"""
+            if mouse_state['button'] == 1:
+                view.Rotation(event.x, event.y)
+
+        def on_right_press(event):
+            """Right mouse button pressed - start pan"""
+            mouse_state['start_x'] = event.x
+            mouse_state['start_y'] = event.y
+            mouse_state['button'] = 3
+
+        def on_right_motion(event):
+            """Right mouse button dragged - pan"""
+            if mouse_state['button'] == 3:
+                dx = event.x - mouse_state['start_x']
+                dy = mouse_state['start_y'] - event.y
+                view.Pan(dx, dy)
+                mouse_state['start_x'] = event.x
+                mouse_state['start_y'] = event.y
+
+        def on_release(event):
+            """Mouse button released"""
+            mouse_state['button'] = None
+
+        def on_wheel(event):
+            """Mouse wheel - zoom"""
+            # event.delta is positive for scroll up, negative for scroll down
+            if event.delta > 0 or event.num == 4:  # Scroll up or Button 4
+                display.ZoomFactor(1.1)
+            elif event.delta < 0 or event.num == 5:  # Scroll down or Button 5
+                display.ZoomFactor(0.9)
+
+        # Unbind existing mouse handlers (but preserve keyboard handlers)
+        for event in ["<Button-1>", "<B1-Motion>", "<ButtonRelease-1>",
+                      "<Button-2>", "<B2-Motion>", "<ButtonRelease-2>",
+                      "<Button-3>", "<B3-Motion>", "<ButtonRelease-3>",
+                      "<MouseWheel>", "<Button-4>", "<Button-5>"]:
+            canvas.unbind(event)
+
+        # Bind new mouse handlers
+        # Left button (Button-1) for rotation
+        canvas.bind("<Button-1>", on_left_press)
+        canvas.bind("<B1-Motion>", on_left_motion)
+        canvas.bind("<ButtonRelease-1>", on_release)
+
+        # Right button (Button-3) for panning
+        canvas.bind("<Button-3>", on_right_press)
+        canvas.bind("<B3-Motion>", on_right_motion)
+        canvas.bind("<ButtonRelease-3>", on_release)
+
+        # Mouse wheel for zooming
+        canvas.bind("<MouseWheel>", on_wheel)  # Windows/MacOS
+        canvas.bind("<Button-4>", on_wheel)    # Linux scroll up
+        canvas.bind("<Button-5>", on_wheel)    # Linux scroll down
+
+        # Add keyboard bindings
+        def on_key_f(event):
+            """'f' key - fit all"""
+            display.FitAll()
+
+        def on_key_q(event):
+            """'q' key - quit"""
+            import sys
+            sys.exit(0)
+
+        # Bind keyboard commands
+        canvas.bind("<f>", on_key_f)
+        canvas.bind("<F>", on_key_f)
+        canvas.bind("<q>", on_key_q)
+        canvas.bind("<Q>", on_key_q)
+        canvas.bind("<Escape>", on_key_q)
+
+        # Give focus to canvas so it receives keyboard events
+        canvas.focus_set()
+
+        print("Controls configured successfully")
+    except Exception as e:
+        print(f"Warning: Could not customize controls: {e}")
+        print("Some features may not work as expected")
 
     # Display the shape in shaded mode (solid representation)
     # This uses the actual BREP geometry, not triangulated meshes
