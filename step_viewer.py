@@ -368,11 +368,21 @@ def display_step_file(filename):
     # Set background color
     from OCC.Core.Quantity import Quantity_TOC_sRGB
     from OCC.Core.Aspect import Aspect_GFM_VER
+    from OCC.Core.Graphic3d import Graphic3d_RenderingParams
     bg_color = Quantity_Color(17/255.0, 18/255.0, 22/255.0, Quantity_TOC_sRGB)
 
     display.View.SetBgGradientStyle(Aspect_GFM_VER)
     display.View.SetBgGradientColors(bg_color, bg_color)
     display.View.SetBackgroundColor(bg_color)
+
+    # Enable antialiasing for smoother edges
+    render_params = display.View.ChangeRenderingParams()
+    render_params.IsAntialiasingEnabled = True
+    # NbMsaaSamples = 2 - Lower quality, better performance
+    # NbMsaaSamples = 4 - Good balance (current setting)
+    # NbMsaaSamples = 8 - Higher quality, may impact performance
+    # NbMsaaSamples = 16 - Maximum quality, slower on some systems
+    render_params.NbMsaaSamples = 4  # 4x MSAA for good quality/performance balance
 
     # Populate the navigation tree
     try:
