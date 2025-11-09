@@ -1,61 +1,151 @@
 # STEP File Viewer
 
-A Python program to import and display STEP files with solid CAD representation using OpenCASCADE.
+A modular, feature-rich CAD file viewer for STEP files with interactive face selection capabilities.
 
 ## Features
 
-- Imports STEP (.step, .stp) files
-- Displays models using BREP (Boundary Representation) geometry
-- NO mesh triangulation - maintains true CAD solid information
-- Interactive 3D viewer with rotation, pan, and zoom
-- **Side navigation panel** with hierarchical parts tree
-- Randomized colorblind-friendly colors for each part (vibrant, pleasant palette)
-- Color-coded parts list showing each part with its assigned color
-- Colors are distinguishable for deuteranopia, protanopia, and tritanopia
-- Shows solid and face counts
+- **3D Visualization**: Display STEP files with native BREP representation
+- **Face Selection**: Select and highlight individual faces with customizable colors
+- **Interactive Navigation**: Rotate, pan, and zoom with mouse controls
+- **Color Management**: Dynamic color schemes with keyboard shortcuts
+- **Parts Tree**: Navigate model hierarchy in a tree view
+- **Anti-aliasing**: Smooth rendering with configurable MSAA
 
 ## Installation
 
-### Option 1: Using Conda (Recommended)
-
 ```bash
+# Install dependencies
 conda install -c conda-forge pythonocc-core
 ```
-
-### Option 2: Using Pip
-
-```bash
-pip install pythonocc-core
-```
-
-**Note**: Installing pythonocc-core via conda is generally more reliable as it handles all the OpenCASCADE dependencies.
 
 ## Usage
 
 ```bash
-python step_viewer.py <path_to_step_file>
+python main.py path/to/model.step
 ```
 
-### Example
+## Project Structure
+
+```
+step_viewer/
+├── __init__.py              # Package initialization
+├── config.py                # Configuration settings
+├── viewer.py                # Main viewer coordinator
+│
+├── controllers/             # Event handling
+│   ├── __init__.py
+│   ├── keyboard_controller.py  # Keyboard shortcuts
+│   └── mouse_controller.py     # Mouse navigation
+│
+├── loaders/                 # File I/O
+│   ├── __init__.py
+│   └── step_loader.py       # STEP file loading
+│
+├── managers/                # Business logic
+│   ├── __init__.py
+│   ├── color_manager.py     # Color preset management
+│   └── selection_manager.py # Face selection state
+│
+├── rendering/               # Graphics rendering
+│   ├── __init__.py
+│   └── material_renderer.py # Material application
+│
+└── ui/                      # User interface
+    ├── __init__.py
+    └── viewer_ui.py         # UI components
+
+main.py                      # Entry point script
+step_viewer.py              # Legacy single-file version (kept for reference)
+```
+
+## Architecture
+
+The application follows **SOLID design principles**:
+
+### Single Responsibility Principle
+Each class has one clear purpose:
+- `ViewerConfig` - Configuration settings
+- `MaterialRenderer` - Material application
+- `ColorManager` - Color preset management
+- `SelectionManager` - Selection state handling
+- `MouseController` - Mouse event processing
+- `KeyboardController` - Keyboard event processing
+- `StepLoader` - STEP file I/O
+- `ViewerUI` - UI component construction
+- `StepViewer` - Application coordination
+
+### Open/Closed Principle
+- Easy to extend with new features
+- Core logic remains unchanged when adding functionality
+
+### Dependency Inversion Principle
+- High-level modules depend on abstractions
+- Controllers and managers are injected as dependencies
+
+## Controls
+
+### Navigation Mode (Default)
+- **Left Mouse**: Rotate view
+- **Right Mouse**: Pan view
+- **Mouse Wheel**: Zoom in/out
+- **F**: Fit all objects in view
+- **S**: Toggle selection mode
+- **Q or ESC**: Quit application
+
+### Selection Mode
+- **Left Click**: Select/deselect faces
+- **Right Mouse**: Pan view
+- **Mouse Wheel**: Zoom in/out
+- **1**: Cycle selection fill color
+- **2**: Cycle outline color
+- **C**: Clear all selections
+- **S**: Return to navigation mode
+
+## Configuration
+
+Edit `step_viewer/config.py` to customize:
+
+```python
+class ViewerConfig:
+    # Window settings
+    WINDOW_WIDTH = 1024
+    WINDOW_HEIGHT = 768
+
+    # Selection colors
+    SELECTION_COLOR = (1.0, 0.5, 0.0)  # Orange
+    SELECTION_OUTLINE_COLOR = (0.07, 0.07, 0.09)  # Dark gray
+    SELECTION_OUTLINE_WIDTH = 2.0
+
+    # Anti-aliasing
+    MSAA_SAMPLES = 4  # 2, 4, 8, or 16
+
+    # Color presets for cycling
+    SELECTION_COLOR_PRESETS = [...]
+    OUTLINE_COLOR_PRESETS = [...]
+```
+
+## Development
+
+### Adding New Features
+
+1. **New Color Preset**: Add to `SELECTION_COLOR_PRESETS` in `config.py`
+2. **New Keyboard Shortcut**: Add method to `KeyboardController` and bind in `viewer.py`
+3. **New File Format**: Create new loader in `loaders/` following `StepLoader` pattern
+4. **Custom Material**: Extend `MaterialRenderer` with new material methods
+
+### Testing
 
 ```bash
-python step_viewer.py model.step
+# Run the viewer with a sample file
+python main.py test.step
 ```
 
-## Viewer Controls
+## License
 
-- **Left mouse button**: Rotate the model
-- **Right mouse button**: Pan the view
-- **Mouse wheel**: Zoom in/out
-- **'f' key**: Fit all (reset view to show entire model)
-- **'q' or ESC**: Quit the viewer
+This project is provided as-is for educational and commercial use.
 
-## Technical Details
+## Credits
 
-This viewer uses:
-- **pythonocc-core**: Python wrapper for OpenCASCADE
-- **OpenCASCADE**: Professional CAD kernel with BREP solid modeling
-- **Solid shaded rendering**: Displays actual surface geometry, not triangulated meshes
-- **Dark background**: rgb(17, 18, 22) for comfortable viewing
-
-The viewer maintains the original CAD topology and geometry, making it suitable for precision engineering applications.
+Built with:
+- [pythonocc-core](https://github.com/tpaviot/pythonocc-core) - Python bindings for OpenCASCADE
+- OpenCASCADE Technology - 3D CAD kernel
