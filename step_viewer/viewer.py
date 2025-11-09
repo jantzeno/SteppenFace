@@ -10,7 +10,7 @@ from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRG
 from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine
 
 from .config import ViewerConfig
-from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager
+from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager
 from .controllers import MouseController, KeyboardController
 from .loaders import StepLoader
 from .rendering import MaterialRenderer
@@ -91,6 +91,7 @@ class StepViewer:
         self.explode_manager = ExplodeManager()
         self.explode_manager.selection_manager = self.selection_manager  # Link for transformation updates
         self.deduplication_manager = DeduplicationManager()
+        self.planar_alignment_manager = PlanarAlignmentManager()
 
         # Initialize controllers
         self.mouse_controller = MouseController(
@@ -149,6 +150,8 @@ class StepViewer:
         self.canvas.bind("<Key-2>", self.keyboard_controller.on_key_2)
         self.canvas.bind("<d>", lambda e: self.toggle_duplicate_visibility())
         self.canvas.bind("<D>", lambda e: self.toggle_duplicate_visibility())
+        self.canvas.bind("<p>", lambda e: self.toggle_planar_alignment())
+        self.canvas.bind("<P>", lambda e: self.toggle_planar_alignment())
 
         self.canvas.focus_set()
 
@@ -208,6 +211,9 @@ class StepViewer:
 
         # Initialize explode manager with parts
         self.explode_manager.initialize_parts(self.parts_list)
+
+        # Initialize planar alignment manager with parts
+        self.planar_alignment_manager.initialize_parts(self.parts_list)
 
     def _configure_display(self):
         """Configure display settings (background, antialiasing, selection)."""
@@ -287,6 +293,7 @@ class StepViewer:
         print("  - 's': Toggle face selection mode")
         print("  - 'c': Clear all selections")
         print("  - 'd': Toggle duplicate parts visibility")
+        print("  - 'p': Toggle planar alignment (lay parts flat)")
         print("  - '1': Cycle selection fill color (in selection mode)")
         print("  - '2': Cycle outline color (in selection mode)")
         print("  - Explode slider: Separate parts")
@@ -317,6 +324,9 @@ class StepViewer:
             if self.hidden_selections:
                 self.selection_manager.restore_hidden_selections(self.hidden_selections, self.root)
                 self.hidden_selections = {}
+
+            # Update parts tree to remove hidden indicators
+            self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
         else:
             # Hide duplicate parts
             unique_parts, duplicate_groups = self.deduplication_manager.get_unique_parts(self.parts_list)
@@ -340,8 +350,8 @@ class StepViewer:
 
             print("Showing only unique parts (duplicates hidden)")
 
-        # Update parts tree to show hidden status
-        self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
+            # Update parts tree to show hidden status
+            self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
 
         # Re-apply explosion if active
         if self.explode_manager.get_explosion_factor() > 0:
@@ -362,3 +372,33 @@ class StepViewer:
         self.display.Context.UpdateCurrentViewer()
         self.display.Repaint()
         self.root.update_idletasks()
+
+    def toggle_planar_alignment(self):
+        """Toggle planar alignment to lay parts flat."""
+        # Reset explosion first if we're enabling planar alignment
+        if not self.planar_alignment_manager.is_aligned:
+            if self.explode_manager.get_explosion_factor() > 0:
+                # Fully reset explosion and ensure display is updated
+                self.explode_manager.set_explosion_factor(0.0, self.display, self.root)
+                self.ui.explode_slider.set(0.0)
+                self.ui.explode_label.config(text="Explode: 0.00")
+                # Force display update before applying planar alignment
+                self.display.Context.UpdateCurrentViewer()
+                self.display.Repaint()
+                self.root.update_idletasks()
+            # Disable explode slider when planar alignment is active
+            self.ui.explode_slider.config(state='disabled')
+        else:
+            # Re-enable explode slider when disabling planar alignment
+            self.ui.explode_slider.config(state='normal')
+
+        is_aligned = self.planar_alignment_manager.toggle_planar_alignment(self.display, self.root)
+
+        if is_aligned:
+            print("Planar alignment enabled - parts laid flat")
+        else:
+            print("Planar alignment disabled - parts restored")
+
+        # Update face highlight transformations if any faces are selected
+        if self.selection_manager.get_selection_count() > 0:
+            self.selection_manager.update_all_transformations(self.root)
