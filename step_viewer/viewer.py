@@ -10,7 +10,7 @@ from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRG
 from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine
 
 from .config import ViewerConfig
-from .managers import ColorManager, SelectionManager
+from .managers import ColorManager, SelectionManager, ExplodeManager
 from .controllers import MouseController, KeyboardController
 from .loaders import StepLoader
 from .rendering import MaterialRenderer
@@ -57,6 +57,9 @@ class StepViewer:
         # Populate UI
         self.ui.populate_parts_tree(self.parts_list)
 
+        # Setup explode slider callback
+        self._setup_explode_slider()
+
         # Print controls
         self._print_controls()
 
@@ -84,6 +87,7 @@ class StepViewer:
         self.color_manager = ColorManager(self.config)
         self.selection_manager = SelectionManager(self.display, self.color_manager, self.config)
         self.selection_manager.set_selection_label(self.ui.selection_label)
+        self.explode_manager = ExplodeManager()
 
         # Initialize controllers
         self.mouse_controller = MouseController(
@@ -197,6 +201,9 @@ class StepViewer:
         self.display.FitAll()
         self.display.Repaint()
 
+        # Initialize explode manager with parts
+        self.explode_manager.initialize_parts(self.parts_list)
+
     def _configure_display(self):
         """Configure display settings (background, antialiasing, selection)."""
         # Background color
@@ -248,6 +255,15 @@ class StepViewer:
             self.display.Context.Activate(ais_shape, 4, False)  # 4 = TopAbs_FACE
             ais_shape.SetHilightMode(1)
 
+    def _setup_explode_slider(self):
+        """Setup the explode slider callback."""
+        def on_slider_change(value):
+            factor = float(value)
+            self.explode_manager.set_explosion_factor(factor, self.display, self.root)
+            self.ui.explode_label.config(text=f"Explode: {factor:.2f}")
+
+        self.ui.explode_slider.config(command=on_slider_change)
+
     def _print_controls(self):
         """Print viewer controls to console."""
         print("\n" + "="*60)
@@ -267,6 +283,7 @@ class StepViewer:
         print("  - 'c': Clear all selections")
         print("  - '1': Cycle selection fill color (in selection mode)")
         print("  - '2': Cycle outline color (in selection mode)")
+        print("  - Explode slider: Separate parts")
         print("  - 'q' or ESC: Quit")
 
     def _final_update(self):

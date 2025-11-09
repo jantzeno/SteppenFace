@@ -18,6 +18,8 @@ class ViewerUI:
         self.parts_tree = None
         self.mode_label = None
         self.selection_label = None
+        self.explode_slider = None
+        self.explode_label = None
 
     def setup_window(self):
         """Setup the main window."""
@@ -115,6 +117,28 @@ class ViewerUI:
             font=('Arial', 9, 'bold'), anchor='w'
         )
         self.selection_label.pack(fill=tk.X, pady=(5, 0))
+
+        # Explode slider section
+        explode_separator = tk.Frame(parent, bg=self.config.SEPARATOR_BG, height=1)
+        explode_separator.pack(fill=tk.X, pady=(10, 0))
+
+        explode_frame = tk.Frame(parent, bg=self.config.PANEL_BG)
+        explode_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        self.explode_label = tk.Label(
+            explode_frame, text="Explode: 0.0", bg=self.config.PANEL_BG, fg='#ffaa00',
+            font=('Arial', 9, 'bold'), anchor='w'
+        )
+        self.explode_label.pack(fill=tk.X)
+
+        self.explode_slider = tk.Scale(
+            explode_frame, from_=0.0, to=2.0, resolution=0.01,
+            orient=tk.HORIZONTAL, bg=self.config.PANEL_BG, fg='#ffffff',
+            highlightthickness=0, troughcolor='#3a3b3f', activebackground='#ffaa00',
+            showvalue=False
+        )
+        self.explode_slider.set(0.0)
+        self.explode_slider.pack(fill=tk.X, pady=(5, 0))
 
     def populate_parts_tree(self, parts_list: List):
         """Populate the parts tree with parts."""
