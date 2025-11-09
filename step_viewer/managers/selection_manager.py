@@ -20,6 +20,7 @@ class SelectionManager:
         self.config = config
         self.is_selection_mode = False
         self.highlighted_faces: Dict[int, AIS_Shape] = {}
+        self.face_parent_map: Dict[int, AIS_Shape] = {}  # Maps face hash to parent AIS_Shape
         self.selection_label = None
 
     def set_selection_label(self, label):
@@ -58,6 +59,8 @@ class SelectionManager:
                 ais_highlight = self.highlighted_faces[face_hash]
                 self.display.Context.Remove(ais_highlight, True)
                 del self.highlighted_faces[face_hash]
+                if face_hash in self.face_parent_map:
+                    del self.face_parent_map[face_hash]
                 action = "Deselected"
             else:
                 # Select
@@ -65,11 +68,17 @@ class SelectionManager:
                 ais_highlight.SetColor(self.color_manager.get_fill_quantity_color())
                 ais_highlight.SetTransparency(self.config.SELECTION_TRANSPARENCY)
 
+                # Set display mode to shaded (1) to show the face properly
+                ais_highlight.SetDisplayMode(1)
+
                 # Copy transformation from parent object if it has one
                 if detected_interactive is not None:
                     parent_ais = AIS_Shape.DownCast(detected_interactive)
-                    if parent_ais is not None and parent_ais.HasTransformation():
-                        ais_highlight.SetLocalTransformation(parent_ais.LocalTransformation())
+                    if parent_ais is not None:
+                        # Store the parent for later transformation updates
+                        self.face_parent_map[face_hash] = parent_ais
+                        if parent_ais.HasTransformation():
+                            ais_highlight.SetLocalTransformation(parent_ais.LocalTransformation())
 
                 drawer = ais_highlight.Attributes()
                 drawer.SetFaceBoundaryDraw(True)
@@ -145,3 +154,73 @@ class SelectionManager:
     def get_selection_count(self) -> int:
         """Get number of currently selected faces."""
         return len(self.highlighted_faces)
+
+    def update_all_transformations(self, root):
+        """Update transformations of all selected faces to match their parent parts."""
+        for face_hash, ais_highlight in self.highlighted_faces.items():
+            if face_hash in self.face_parent_map:
+                parent_ais = self.face_parent_map[face_hash]
+                if parent_ais.HasTransformation():
+                    ais_highlight.SetLocalTransformation(parent_ais.LocalTransformation())
+                else:
+                    # Clear transformation if parent has none
+                    ais_highlight.SetLocalTransformation(parent_ais.LocalTransformation())
+                self.display.Context.Redisplay(ais_highlight, True)
+
+        self.display.Context.UpdateCurrentViewer()
+        self.display.Repaint()
+        root.update_idletasks()
+        root.update()
+
+    def hide_selections_for_parts(self, ais_shapes_to_hide, root):
+        """
+        Hide selections for specific parts (when parts are hidden).
+        Returns a dict of hidden selections for later restoration.
+        """
+        hidden_selections = {}
+        faces_to_remove = []
+
+        for face_hash, ais_highlight in list(self.highlighted_faces.items()):
+            if face_hash in self.face_parent_map:
+                parent_ais = self.face_parent_map[face_hash]
+                if parent_ais in ais_shapes_to_hide:
+                    # Store for later restoration
+                    hidden_selections[face_hash] = {
+                        'ais_highlight': ais_highlight,
+                        'parent_ais': parent_ais
+                    }
+                    # Hide the selection
+                    self.display.Context.Remove(ais_highlight, False)
+                    faces_to_remove.append(face_hash)
+
+        # Remove from active selections
+        for face_hash in faces_to_remove:
+            del self.highlighted_faces[face_hash]
+
+        # Update selection count label
+        count = len(self.highlighted_faces)
+        if self.selection_label:
+            self.selection_label.config(text=f"Selected: {count} face{'s' if count != 1 else ''}")
+
+        self.display.Context.UpdateCurrentViewer()
+        self.display.Repaint()
+        root.update_idletasks()
+
+        return hidden_selections
+
+    def restore_hidden_selections(self, hidden_selections, root):
+        """Restore previously hidden selections when parts become visible again."""
+        for face_hash, selection_data in hidden_selections.items():
+            ais_highlight = selection_data['ais_highlight']
+            # Restore the selection
+            self.display.Context.Display(ais_highlight, False)
+            self.highlighted_faces[face_hash] = ais_highlight
+
+        # Update selection count label
+        count = len(self.highlighted_faces)
+        if self.selection_label:
+            self.selection_label.config(text=f"Selected: {count} face{'s' if count != 1 else ''}")
+
+        self.display.Context.UpdateCurrentViewer()
+        self.display.Repaint()
+        root.update_idletasks()

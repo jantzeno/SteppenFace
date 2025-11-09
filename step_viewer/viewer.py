@@ -28,6 +28,7 @@ class StepViewer:
         self.shape = None
         self.display = None
         self.parts_list = []
+        self.hidden_selections = {}  # Store selections for hidden duplicate parts
 
     def run(self):
         """Main entry point to run the viewer."""
@@ -88,6 +89,7 @@ class StepViewer:
         self.selection_manager = SelectionManager(self.display, self.color_manager, self.config)
         self.selection_manager.set_selection_label(self.ui.selection_label)
         self.explode_manager = ExplodeManager()
+        self.explode_manager.selection_manager = self.selection_manager  # Link for transformation updates
         self.deduplication_manager = DeduplicationManager()
 
         # Initialize controllers
@@ -310,9 +312,23 @@ class StepViewer:
             for solid, color, ais_shape in self.parts_list:
                 self.display.Context.Display(ais_shape, False)
             print("Showing all parts (including duplicates)")
+
+            # Restore hidden selections
+            if self.hidden_selections:
+                self.selection_manager.restore_hidden_selections(self.hidden_selections, self.root)
+                self.hidden_selections = {}
         else:
             # Hide duplicate parts
             unique_parts, duplicate_groups = self.deduplication_manager.get_unique_parts(self.parts_list)
+
+            # Collect AIS shapes that will be hidden
+            hidden_indices = self.deduplication_manager.hidden_indices
+            ais_shapes_to_hide = [self.parts_list[i][2] for i in hidden_indices]
+
+            # Hide selections for parts that are about to be hidden
+            self.hidden_selections = self.selection_manager.hide_selections_for_parts(
+                ais_shapes_to_hide, self.root
+            )
 
             # Hide all parts first
             for solid, color, ais_shape in self.parts_list:

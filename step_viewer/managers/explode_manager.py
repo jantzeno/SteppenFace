@@ -18,6 +18,7 @@ class ExplodeManager:
         self.global_center = None
         self.explosion_factor = 0.0
         self.min_part_distance = None
+        self.selection_manager = None  # Will be set by viewer
 
     def initialize_parts(self, parts_list: List):
         """
@@ -131,6 +132,10 @@ class ExplodeManager:
         # Refresh display
         display.Context.UpdateCurrentViewer()
         root.update_idletasks()
+
+        # Update face highlight transformations if selection manager is set
+        if self.selection_manager:
+            self.selection_manager.update_all_transformations(root)
 
     def reset(self, display, root):
         """Reset all parts to original positions."""
