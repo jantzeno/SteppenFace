@@ -140,7 +140,7 @@ class ViewerUI:
         self.explode_slider.set(0.0)
         self.explode_slider.pack(fill=tk.X, pady=(5, 0))
 
-    def populate_parts_tree(self, parts_list: List):
+    def populate_parts_tree(self, parts_list: List, deduplication_manager=None):
         """Populate the parts tree with parts."""
         if not self.parts_tree:
             return
@@ -154,6 +154,28 @@ class ViewerUI:
         for i, (solid, color, ais_shape) in enumerate(parts_list):
             r, g, b = color
             hex_color = f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
-            part_name = f'■ Part {i+1}'
+
+            # Check if this part is hidden as a duplicate
+            is_hidden = deduplication_manager and deduplication_manager.is_part_hidden(i)
+
+            if is_hidden:
+                part_name = f'■ Part {i+1} (hidden - duplicate)'
+                # Use a dimmed color for hidden parts
+                hex_color = '#666666'
+            else:
+                part_name = f'■ Part {i+1}'
+
             self.parts_tree.insert(root_node, 'end', text=part_name, tags=(f'part_{i}',))
             self.parts_tree.tag_configure(f'part_{i}', foreground=hex_color)
+
+    def update_parts_tree(self, parts_list: List, deduplication_manager=None):
+        """Update the parts tree to reflect current visibility state."""
+        if not self.parts_tree:
+            return
+
+        # Clear existing tree
+        for item in self.parts_tree.get_children():
+            self.parts_tree.delete(item)
+
+        # Repopulate with updated information
+        self.populate_parts_tree(parts_list, deduplication_manager)

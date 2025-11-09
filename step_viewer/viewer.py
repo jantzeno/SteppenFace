@@ -10,7 +10,7 @@ from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRG
 from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine
 
 from .config import ViewerConfig
-from .managers import ColorManager, SelectionManager, ExplodeManager
+from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager
 from .controllers import MouseController, KeyboardController
 from .loaders import StepLoader
 from .rendering import MaterialRenderer
@@ -54,7 +54,7 @@ class StepViewer:
         # Configure display settings
         self._configure_display()
 
-        # Populate UI
+        # Populate UI (deduplication manager not initialized yet at this point)
         self.ui.populate_parts_tree(self.parts_list)
 
         # Setup explode slider callback
@@ -88,6 +88,7 @@ class StepViewer:
         self.selection_manager = SelectionManager(self.display, self.color_manager, self.config)
         self.selection_manager.set_selection_label(self.ui.selection_label)
         self.explode_manager = ExplodeManager()
+        self.deduplication_manager = DeduplicationManager()
 
         # Initialize controllers
         self.mouse_controller = MouseController(
@@ -144,6 +145,8 @@ class StepViewer:
         self.canvas.bind("<C>", self.keyboard_controller.on_key_c)
         self.canvas.bind("<Key-1>", self.keyboard_controller.on_key_1)
         self.canvas.bind("<Key-2>", self.keyboard_controller.on_key_2)
+        self.canvas.bind("<d>", lambda e: self.toggle_duplicate_visibility())
+        self.canvas.bind("<D>", lambda e: self.toggle_duplicate_visibility())
 
         self.canvas.focus_set()
 
@@ -281,6 +284,7 @@ class StepViewer:
         print("  - 'f': Fit all")
         print("  - 's': Toggle face selection mode")
         print("  - 'c': Clear all selections")
+        print("  - 'd': Toggle duplicate parts visibility")
         print("  - '1': Cycle selection fill color (in selection mode)")
         print("  - '2': Cycle outline color (in selection mode)")
         print("  - Explode slider: Separate parts")
@@ -296,3 +300,49 @@ class StepViewer:
             self.resize_state['initialized'] = True
         except Exception as e:
             print(f"Warning: Could not perform final update: {e}")
+
+    def toggle_duplicate_visibility(self):
+        """Toggle visibility of duplicate parts."""
+        show_duplicates = self.deduplication_manager.toggle_duplicates()
+
+        if show_duplicates:
+            # Show all parts
+            for solid, color, ais_shape in self.parts_list:
+                self.display.Context.Display(ais_shape, False)
+            print("Showing all parts (including duplicates)")
+        else:
+            # Hide duplicate parts
+            unique_parts, duplicate_groups = self.deduplication_manager.get_unique_parts(self.parts_list)
+
+            # Hide all parts first
+            for solid, color, ais_shape in self.parts_list:
+                self.display.Context.Erase(ais_shape, False)
+
+            # Show only unique parts
+            for solid, color, ais_shape in unique_parts:
+                self.display.Context.Display(ais_shape, False)
+
+            print("Showing only unique parts (duplicates hidden)")
+
+        # Update parts tree to show hidden status
+        self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
+
+        # Re-apply explosion if active
+        if self.explode_manager.get_explosion_factor() > 0:
+            # Get visible parts for explosion
+            if show_duplicates:
+                visible_parts = self.parts_list
+            else:
+                visible_parts, _ = self.deduplication_manager.get_unique_parts(self.parts_list)
+
+            self.explode_manager.initialize_parts(visible_parts)
+            self.explode_manager.set_explosion_factor(
+                self.explode_manager.get_explosion_factor(),
+                self.display,
+                self.root
+            )
+
+        # Update display
+        self.display.Context.UpdateCurrentViewer()
+        self.display.Repaint()
+        self.root.update_idletasks()

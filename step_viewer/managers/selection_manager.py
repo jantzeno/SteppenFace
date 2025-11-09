@@ -48,6 +48,9 @@ class SelectionManager:
             if detected_shape.IsNull():
                 return False
 
+            # Get the parent interactive object (AIS_Shape) that was clicked
+            detected_interactive = self.display.Context.DetectedInteractive()
+
             face_hash = detected_shape.__hash__()
 
             if face_hash in self.highlighted_faces:
@@ -61,6 +64,12 @@ class SelectionManager:
                 ais_highlight = AIS_Shape(detected_shape)
                 ais_highlight.SetColor(self.color_manager.get_fill_quantity_color())
                 ais_highlight.SetTransparency(self.config.SELECTION_TRANSPARENCY)
+
+                # Copy transformation from parent object if it has one
+                if detected_interactive is not None:
+                    parent_ais = AIS_Shape.DownCast(detected_interactive)
+                    if parent_ais is not None and parent_ais.HasTransformation():
+                        ais_highlight.SetLocalTransformation(parent_ais.LocalTransformation())
 
                 drawer = ais_highlight.Attributes()
                 drawer.SetFaceBoundaryDraw(True)
