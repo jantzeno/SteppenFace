@@ -46,13 +46,14 @@ def get_colorblind_friendly_palette():
     return palette
 
 
-def apply_matte_material(ais_shape, color):
+def apply_matte_material(ais_shape, color, edge_color=None):
     """
     Apply a matte plastic material to reduce lighting effects and maintain consistent colors.
 
     Args:
         ais_shape: The AIS shape object to apply material to
         color: Quantity_Color object for the shape
+        edge_color: Optional Quantity_Color for edges (defaults to dark gray if None)
     """
     material = Graphic3d_MaterialAspect(Graphic3d_NameOfMaterial.Graphic3d_NOM_PLASTIC)
     material.SetAmbientColor(color)
@@ -61,6 +62,15 @@ def apply_matte_material(ais_shape, color):
     dark_color = Quantity_Color(0.05, 0.05, 0.05, Quantity_TOC_RGB)
     material.SetSpecularColor(dark_color)
     ais_shape.SetMaterial(material)
+
+    # Set edge color
+    if edge_color is None:
+        edge_color = Quantity_Color(0.15, 0.15, 0.15, Quantity_TOC_RGB)  # Dark gray
+
+    drawer = ais_shape.Attributes()
+    drawer.SetFaceBoundaryDraw(True)
+    drawer.FaceBoundaryAspect().SetColor(edge_color)
+    drawer.FaceBoundaryAspect().SetWidth(1.0)
 
 
 def assign_random_colors_to_solids(shape, display, update_display=True):
