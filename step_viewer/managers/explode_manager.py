@@ -7,7 +7,7 @@ import numpy as np
 
 from OCC.Core.gp import gp_Trsf, gp_Vec
 from OCC.Core.GProp import GProp_GProps
-from OCC.Core.BRepGProp import brepgprop_VolumeProperties
+from OCC.Core.BRepGProp import brepgprop
 
 
 class ExplodeManager:
@@ -32,7 +32,7 @@ class ExplodeManager:
         for solid, color, ais_shape in parts_list:
             # Calculate centroid of the solid
             props = GProp_GProps()
-            brepgprop_VolumeProperties(solid, props)
+            brepgprop.VolumeProperties(solid, props)
             centroid = props.CentreOfMass()
             centroid_tuple = (centroid.X(), centroid.Y(), centroid.Z())
 
