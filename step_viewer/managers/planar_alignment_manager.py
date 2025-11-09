@@ -4,6 +4,7 @@ Planar alignment manager for laying parts flat on a surface.
 
 from typing import List, Tuple, Optional
 import numpy as np
+import math
 
 from OCC.Core.gp import gp_Trsf, gp_Vec, gp_Ax1, gp_Pnt, gp_Dir, gp_Ax3
 from OCC.Core.GProp import GProp_GProps
@@ -12,6 +13,9 @@ from OCC.Core.TopAbs import TopAbs_FACE
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
 from OCC.Core.GeomAbs import GeomAbs_Plane
+from OCC.Core.Bnd import Bnd_Box
+from OCC.Core.BRepBndLib import brepbndlib
+from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 
 
 class PlanarAlignmentManager:
@@ -49,8 +53,11 @@ class PlanarAlignmentManager:
         return self.is_aligned
 
     def _apply_planar_alignment(self, display, root):
-        """Apply planar alignment to all parts."""
+        """Apply planar alignment to all parts - lay flat and arrange in grid."""
         self.original_transformations = []
+
+        # First pass: rotate parts to lay flat and calculate their bounding boxes
+        part_transforms = []
 
         for part_data in self.parts_data:
             solid = part_data['solid']
@@ -69,7 +76,6 @@ class PlanarAlignmentManager:
                 face, area, normal, center = largest_face_info
 
                 # Create transformation to align face with XY plane
-                # The normal should point upward (positive Z)
                 z_axis = gp_Dir(0, 0, 1)
 
                 # If normal points downward, flip it
@@ -78,38 +84,98 @@ class PlanarAlignmentManager:
                     normal_dir.Reverse()
 
                 # Create rotation to align normal with Z axis
-                trsf = gp_Trsf()
+                rotation_trsf = gp_Trsf()
 
                 # Only rotate if not already aligned
                 if abs(normal_dir.Z() - 1.0) > 0.001:
-                    # Create axis of rotation perpendicular to both vectors
                     rotation_axis = gp_Vec(normal_dir.XYZ()).Crossed(gp_Vec(z_axis.XYZ()))
                     if rotation_axis.Magnitude() > 0.001:
                         rotation_axis.Normalize()
                         axis = gp_Ax1(gp_Pnt(center[0], center[1], center[2]),
                                      gp_Dir(rotation_axis.XYZ()))
-
-                        # Calculate angle between vectors
                         angle = np.arccos(np.clip(normal_dir.Dot(z_axis), -1.0, 1.0))
+                        rotation_trsf.SetRotation(axis, angle)
 
-                        trsf.SetRotation(axis, angle)
+                # Calculate bounding box after rotation
+                transformed_shape = BRepBuilderAPI_Transform(solid, rotation_trsf, False).Shape()
+                bbox = Bnd_Box()
+                brepbndlib.Add(transformed_shape, bbox)
+                xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
 
-                # Apply existing transformation first if any
-                if ais_shape.HasTransformation():
-                    combined_trsf = ais_shape.LocalTransformation()
-                    combined_trsf.Multiply(trsf)
-                    ais_shape.SetLocalTransformation(combined_trsf)
-                else:
-                    ais_shape.SetLocalTransformation(trsf)
+                part_transforms.append({
+                    'rotation_trsf': rotation_trsf,
+                    'bbox': (xmin, ymin, zmin, xmax, ymax, zmax),
+                    'width': xmax - xmin,
+                    'height': ymax - ymin,
+                    'depth': zmax - zmin,
+                    'ais_shape': ais_shape
+                })
+            else:
+                # No planar face found, store identity transform
+                part_transforms.append({
+                    'rotation_trsf': gp_Trsf(),
+                    'bbox': (0, 0, 0, 0, 0, 0),
+                    'width': 0,
+                    'height': 0,
+                    'depth': 0,
+                    'ais_shape': ais_shape
+                })
 
-                # Update display
-                display.Context.Redisplay(ais_shape, True)
+        # Second pass: arrange parts in a grid layout
+        grid_cols = math.ceil(math.sqrt(len(part_transforms)))
+        current_row = 0
+        current_col = 0
+        row_heights = []
+        col_widths = [0] * grid_cols
+
+        # Calculate grid dimensions
+        for i, pt in enumerate(part_transforms):
+            col = i % grid_cols
+            row = i // grid_cols
+
+            if row >= len(row_heights):
+                row_heights.append(0)
+
+            row_heights[row] = max(row_heights[row], pt['height'])
+            col_widths[col] = max(col_widths[col], pt['width'])
+
+        # Add spacing between parts (10% of average size)
+        avg_width = sum(col_widths) / len(col_widths) if col_widths else 10
+        spacing = avg_width * 0.2
+
+        # Place parts in grid
+        for i, pt in enumerate(part_transforms):
+            col = i % grid_cols
+            row = i // grid_cols
+
+            # Calculate position based on grid
+            x_offset = sum(col_widths[:col]) + spacing * col
+            y_offset = sum(row_heights[:row]) + spacing * row
+
+            # Get bbox info
+            xmin, ymin, zmin, xmax, ymax, zmax = pt['bbox']
+
+            # Create translation to move part to grid position and Z=0
+            translation_trsf = gp_Trsf()
+            translation_trsf.SetTranslation(gp_Vec(
+                x_offset - xmin,
+                y_offset - ymin,
+                -zmin  # Move to Z=0
+            ))
+
+            # Combine transformations: translation * rotation (apply rotation first, then translation)
+            final_trsf = translation_trsf
+            final_trsf.Multiply(pt['rotation_trsf'])
+
+            # Apply transformation
+            pt['ais_shape'].SetLocalTransformation(final_trsf)
+            display.Context.Redisplay(pt['ais_shape'], True)
 
         # Refresh display
         display.Context.UpdateCurrentViewer()
         root.update_idletasks()
 
-        print("Parts aligned to lay flat")
+        print(f"Parts aligned to lay flat in {grid_cols}-column grid")
 
     def _reset_alignment(self, display, root):
         """Reset parts to their original orientations."""
