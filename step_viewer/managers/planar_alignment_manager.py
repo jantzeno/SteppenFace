@@ -171,8 +171,9 @@ class PlanarAlignmentManager:
             pt['ais_shape'].SetLocalTransformation(final_trsf)
             display.Context.Redisplay(pt['ais_shape'], True)
 
-        # Refresh display
+        # Refresh display and fit view
         display.Context.UpdateCurrentViewer()
+        display.FitAll()
         root.update_idletasks()
 
         print(f"Parts aligned to lay flat in {grid_cols}-column grid")
@@ -192,8 +193,9 @@ class PlanarAlignmentManager:
 
                 display.Context.Redisplay(ais_shape, True)
 
-        # Refresh display
+        # Refresh display and fit view
         display.Context.UpdateCurrentViewer()
+        display.FitAll()
         root.update_idletasks()
 
         self.original_transformations = []
