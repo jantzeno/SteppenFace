@@ -58,6 +58,9 @@ class StepViewer:
         # Populate UI (deduplication manager not initialized yet at this point)
         self.ui.populate_parts_tree(self.parts_list)
 
+        # Setup tree selection callback
+        self._setup_tree_selection()
+
         # Setup explode slider callback
         self._setup_explode_slider()
 
@@ -95,6 +98,7 @@ class StepViewer:
         self.explode_manager.selection_manager = self.selection_manager  # Link for transformation updates
         self.deduplication_manager = DeduplicationManager()
         self.planar_alignment_manager = PlanarAlignmentManager()
+        self.selection_manager.set_planar_alignment_manager(self.planar_alignment_manager)
 
         # Initialize controllers
         self.mouse_controller = MouseController(
@@ -121,9 +125,12 @@ class StepViewer:
                 except:
                     pass
 
-        # Helper to stop event propagation
+        # Helper to stop event propagation (but allow tree widget events)
         def make_handler(func):
             def handler(event):
+                # Don't intercept events from the parts tree
+                if hasattr(event.widget, 'winfo_class') and event.widget.winfo_class() == 'Treeview':
+                    return
                 func(event)
                 return "break"
             return handler
@@ -155,6 +162,10 @@ class StepViewer:
         self.canvas.bind("<D>", lambda e: self.toggle_duplicate_visibility())
         self.canvas.bind("<p>", lambda e: self.toggle_planar_alignment())
         self.canvas.bind("<P>", lambda e: self.toggle_planar_alignment())
+        self.canvas.bind("<l>", lambda e: self.select_largest_faces())
+        self.canvas.bind("<L>", lambda e: self.select_largest_faces())
+        self.canvas.bind("<o>", lambda e: self.toggle_origin())
+        self.canvas.bind("<O>", lambda e: self.toggle_origin())
 
         # Bind view preset keys (Shift + number keys)
         self.canvas.bind("<exclam>", self.keyboard_controller.on_key_shift_1)  # Shift+1 = ! (Front)
@@ -300,6 +311,154 @@ class StepViewer:
 
         self.ui.explode_slider.config(command=on_slider_change)
 
+        # Setup material thickness slider callback
+        def on_thickness_change(value):
+            thickness = float(value)
+            self.config.MATERIAL_THICKNESS_MM = thickness
+            self.ui.thickness_label.config(text=f"Material: {thickness:.2f}mm")
+
+        self.ui.thickness_slider.config(command=on_thickness_change)
+
+    def _setup_tree_selection(self):
+        """Setup tree selection to highlight parts with multi-select and toggle."""
+        self.highlighted_parts = {}  # Track highlighted parts: {part_idx: (ais_shape, original_color)}
+
+        def on_tree_click(event):
+            # Get the item that was clicked
+            item = self.ui.parts_tree.identify_row(event.y)
+            if not item:
+                return
+
+            # Get the tag to extract part index
+            tags = self.ui.parts_tree.item(item, 'tags')
+            if not tags or not tags[0].startswith('part_'):
+                return
+
+            part_idx = int(tags[0].split('_')[1])
+
+            # Toggle highlight for this part
+            if part_idx in self.highlighted_parts:
+                self._unhighlight_part(part_idx)
+                # Deselect in tree
+                self.ui.parts_tree.selection_remove(item)
+            else:
+                self._highlight_part(part_idx)
+                # Select in tree
+                self.ui.parts_tree.selection_add(item)
+
+            # Return focus to canvas so keyboard shortcuts work
+            self.canvas.focus_set()
+
+            return "break"  # Prevent default selection behavior
+
+        # Bind to ButtonRelease to handle clicks
+        self.ui.parts_tree.bind('<ButtonRelease-1>', on_tree_click)
+
+    def _highlight_part(self, part_idx: int):
+        """Highlight a part in the 3D view."""
+        if part_idx < 0 or part_idx >= len(self.parts_list):
+            return
+
+        # Already highlighted
+        if part_idx in self.highlighted_parts:
+            return
+
+        _, color, ais_shape = self.parts_list[part_idx]
+
+        # Store original color
+        original_color = Quantity_Color(color[0], color[1], color[2], Quantity_TOC_RGB)
+
+        # Create bright highlight color (yellow)
+        highlight_color = Quantity_Color(1.0, 1.0, 0.0, Quantity_TOC_RGB)
+
+        # Apply highlight
+        self.display.Context.SetColor(ais_shape, highlight_color, False)
+        self.display.Context.UpdateCurrentViewer()
+        self.display.Repaint()
+
+        # Store for later restoration
+        self.highlighted_parts[part_idx] = (ais_shape, original_color)
+
+        # Update tree item to show highlighted state
+        self._update_tree_highlight_indicator(part_idx, True)
+
+        print(f"Highlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)")
+
+    def _unhighlight_part(self, part_idx: int):
+        """Remove highlight from a specific part."""
+        if part_idx not in self.highlighted_parts:
+            return
+
+        ais_shape, original_color = self.highlighted_parts[part_idx]
+
+        # Restore original color
+        self.display.Context.SetColor(ais_shape, original_color, False)
+        self.display.Context.UpdateCurrentViewer()
+        self.display.Repaint()
+
+        # Remove from tracked highlights
+        del self.highlighted_parts[part_idx]
+
+        # Update tree item to remove highlighted state
+        self._update_tree_highlight_indicator(part_idx, False)
+
+        print(f"Unhighlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)")
+
+    def _clear_all_part_highlights(self):
+        """Clear all part highlights."""
+        for part_idx in list(self.highlighted_parts.keys()):
+            self._unhighlight_part(part_idx)
+
+        # Clear tree selection
+        self.ui.parts_tree.selection_remove(self.ui.parts_tree.selection())
+
+    def _update_tree_highlight_indicator(self, part_idx: int, is_highlighted: bool):
+        """Update tree item visual indicator for highlighted parts."""
+        # Find the tree item for this part
+        root_items = self.ui.parts_tree.get_children()
+        if not root_items:
+            return
+
+        # Get all part items under the root
+        root_item = root_items[0]
+        part_items = self.ui.parts_tree.get_children(root_item)
+
+        # Find the item with matching part tag
+        for item in part_items:
+            tags = self.ui.parts_tree.item(item, 'tags')
+            if tags and tags[0] == f'part_{part_idx}':
+                # Get current item text
+                current_text = self.ui.parts_tree.item(item, 'text')
+
+                if is_highlighted:
+                    # Add visual indicator (star) if not already present
+                    if not current_text.startswith('★ '):
+                        new_text = '★ ' + current_text
+                        self.ui.parts_tree.item(item, text=new_text)
+                        # Make text bold and bright yellow
+                        self.ui.parts_tree.tag_configure(f'part_{part_idx}', foreground='#ffff00', font=('Arial', 9, 'bold'))
+                else:
+                    # Remove visual indicator
+                    if current_text.startswith('★ '):
+                        new_text = current_text[2:]  # Remove "★ "
+                        self.ui.parts_tree.item(item, text=new_text)
+                        # Restore original color (need to recalculate from parts_list)
+                        if part_idx < len(self.parts_list):
+                            _, color, _ = self.parts_list[part_idx]
+                            r, g, b = color
+                            hex_color = f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+                            # Check if this part is hidden as duplicate
+                            is_hidden = self.deduplication_manager and self.deduplication_manager.is_part_hidden(part_idx)
+                            if is_hidden:
+                                hex_color = '#666666'
+                            self.ui.parts_tree.tag_configure(f'part_{part_idx}', foreground=hex_color, font=('Arial', 9))
+                break
+
+    def _restore_tree_highlight_indicators(self):
+        """Restore highlight indicators in tree after tree refresh."""
+        for part_idx in self.highlighted_parts.keys():
+            self._update_tree_highlight_indicator(part_idx, True)
+
     def _setup_view_buttons(self):
         """Setup view preset button callbacks."""
         view_controller = self.keyboard_controller.view_controller
@@ -328,6 +487,7 @@ class StepViewer:
         print("  - Mouse wheel: Zoom")
         print("  - 'f': Fit all")
         print("  - 's': Toggle face selection mode")
+        print("  - 'l': Select largest external face per part")
         print("  - 'c': Clear all selections")
         print("  - 'd': Toggle duplicate parts visibility")
         print("  - 'p': Toggle planar alignment (lay parts flat)")
@@ -361,6 +521,9 @@ class StepViewer:
         show_duplicates = self.deduplication_manager.toggle_duplicates()
 
         if show_duplicates:
+            # Clear hidden indices when showing all parts
+            self.deduplication_manager.hidden_indices.clear()
+
             # Show all parts
             for solid, color, ais_shape in self.parts_list:
                 self.display.Context.Display(ais_shape, False)
@@ -373,6 +536,9 @@ class StepViewer:
 
             # Update parts tree to remove hidden indicators
             self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
+
+            # Restore highlight indicators in the refreshed tree
+            self._restore_tree_highlight_indicators()
         else:
             # Hide duplicate parts
             unique_parts, duplicate_groups = self.deduplication_manager.get_unique_parts(self.parts_list)
@@ -398,6 +564,9 @@ class StepViewer:
 
             # Update parts tree to show hidden status
             self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
+
+            # Restore highlight indicators in the refreshed tree
+            self._restore_tree_highlight_indicators()
 
         # Re-apply explosion if active
         if self.explode_manager.get_explosion_factor() > 0:
@@ -440,11 +609,35 @@ class StepViewer:
 
         is_aligned = self.planar_alignment_manager.toggle_planar_alignment(self.display, self.root)
 
+        # Update face highlight transformations to match their parent parts
+        self.selection_manager.update_face_transformations()
+
         if is_aligned:
             print("Planar alignment enabled - parts laid flat")
         else:
             print("Planar alignment disabled - parts restored")
 
-        # Update face highlight transformations if any faces are selected
-        if self.selection_manager.get_selection_count() > 0:
-            self.selection_manager.update_all_transformations(self.root)
+    def toggle_origin(self):
+        """Reset assembly origin or set it manually (future: click to set)."""
+        if not hasattr(self, 'parts_list') or not self.parts_list:
+            print("No model loaded. Load a STEP file first.")
+            return
+
+        if self.selection_manager.assembly_origin is None:
+            print("Origin control: Currently using automatic assembly center.")
+            print("Future feature: Click-to-set manual origin point.")
+            print("For now, the assembly center is calculated automatically during face selection.")
+        else:
+            # Reset manual origin
+            self.selection_manager.reset_assembly_origin()
+            print("Manual origin reset. Now using automatic assembly center.")
+
+    def select_largest_faces(self):
+        """Select the largest external face of each part."""
+        # Get the visible parts list (respecting duplicate hiding)
+        if not self.deduplication_manager.show_duplicates:
+            visible_parts, _ = self.deduplication_manager.get_unique_parts(self.parts_list)
+        else:
+            visible_parts = self.parts_list
+
+        self.selection_manager.select_largest_external_faces(visible_parts, self.root)

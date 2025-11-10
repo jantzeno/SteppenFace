@@ -20,6 +20,8 @@ class ViewerUI:
         self.selection_label = None
         self.explode_slider = None
         self.explode_label = None
+        self.thickness_slider = None
+        self.thickness_label = None
 
     def setup_window(self):
         """Setup the main window."""
@@ -140,6 +142,29 @@ class ViewerUI:
         self.explode_slider.set(0.0)
         self.explode_slider.pack(fill=tk.X, pady=(5, 0))
 
+        # Material thickness slider section
+        thickness_separator = tk.Frame(parent, bg=self.config.SEPARATOR_BG, height=1)
+        thickness_separator.pack(fill=tk.X, pady=(10, 0))
+
+        thickness_frame = tk.Frame(parent, bg=self.config.PANEL_BG)
+        thickness_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        self.thickness_label = tk.Label(
+            thickness_frame, text=f"Material: {self.config.MATERIAL_THICKNESS_MM:.2f}mm",
+            bg=self.config.PANEL_BG, fg='#00ff88',
+            font=('Arial', 9, 'bold'), anchor='w'
+        )
+        self.thickness_label.pack(fill=tk.X)
+
+        self.thickness_slider = tk.Scale(
+            thickness_frame, from_=1.0, to=25.0, resolution=0.1,
+            orient=tk.HORIZONTAL, bg=self.config.PANEL_BG, fg='#ffffff',
+            highlightthickness=0, troughcolor='#3a3b3f', activebackground='#00ff88',
+            showvalue=False
+        )
+        self.thickness_slider.set(self.config.MATERIAL_THICKNESS_MM)
+        self.thickness_slider.pack(fill=tk.X, pady=(5, 0))
+
         # View preset buttons section
         self._create_view_buttons(parent)
 
@@ -243,7 +268,8 @@ class ViewerUI:
                 part_name = f'■ Part {i+1}'
 
             self.parts_tree.insert(root_node, 'end', text=part_name, tags=(f'part_{i}',))
-            self.parts_tree.tag_configure(f'part_{i}', foreground=hex_color)
+            # Set default styling (will be overridden by highlight indicators if needed)
+            self.parts_tree.tag_configure(f'part_{i}', foreground=hex_color, font=('Arial', 9))
 
     def update_parts_tree(self, parts_list: List, deduplication_manager=None):
         """Update the parts tree to reflect current visibility state."""

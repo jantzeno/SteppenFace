@@ -44,6 +44,8 @@ class KeyboardController:
             print("  - Right click: Pan")
             print("  - Mouse wheel: Zoom")
             print("  - 's': Exit selection mode")
+            print("  - 'l': Select largest external face per part")
+            print("  - 'o': Toggle assembly origin (for face selection)")
             print("  - 'c': Clear all selections")
             print("  - '1': Cycle selection fill color")
             print("  - '2': Cycle outline color")
@@ -118,3 +120,15 @@ class KeyboardController:
         """Set isometric view."""
         self.view_controller.set_isometric_view()
         print("View: Isometric")
+
+    def on_key_o(self, event):
+        """Set origin to assembly center or reset if already set."""
+        from OCC.Core.gp import gp_Pnt
+
+        if self.selection_manager.assembly_origin is None:
+            # Calculate and set origin to assembly center
+            # We need access to parts_list - this will be passed through viewer
+            print("Press 'o' in selection mode after loading a model to set origin")
+        else:
+            # Reset origin
+            self.selection_manager.reset_assembly_origin()

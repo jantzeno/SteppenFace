@@ -25,6 +25,7 @@ class PlanarAlignmentManager:
         self.parts_data = []
         self.is_aligned = False
         self.original_transformations = []  # Store original transforms for reset
+        self.selected_faces_per_part = {}  # Maps part index to selected face for orientation
 
     def initialize_parts(self, parts_list: List):
         """
@@ -40,6 +41,15 @@ class PlanarAlignmentManager:
                 'color': color,
                 'ais_shape': ais_shape
             })
+
+    def set_selected_faces(self, selected_faces_map: dict):
+        """
+        Set selected faces for each part to use for orientation in planar alignment.
+
+        Args:
+            selected_faces_map: Dict mapping part index to selected face
+        """
+        self.selected_faces_per_part = selected_faces_map
 
     def toggle_planar_alignment(self, display, root):
         """Toggle planar alignment on/off."""
@@ -59,7 +69,7 @@ class PlanarAlignmentManager:
         # First pass: rotate parts to lay flat and calculate their bounding boxes
         part_transforms = []
 
-        for part_data in self.parts_data:
+        for part_idx, part_data in enumerate(self.parts_data):
             solid = part_data['solid']
             ais_shape = part_data['ais_shape']
 
@@ -69,8 +79,12 @@ class PlanarAlignmentManager:
             else:
                 self.original_transformations.append(None)
 
-            # Find the largest planar face
-            largest_face_info = self._find_largest_planar_face(solid)
+            # Use selected face if available, otherwise find the largest planar face
+            if part_idx in self.selected_faces_per_part:
+                selected_face = self.selected_faces_per_part[part_idx]
+                largest_face_info = self._get_face_info(selected_face)
+            else:
+                largest_face_info = self._find_largest_planar_face(solid)
 
             if largest_face_info:
                 face, area, normal, center = largest_face_info
@@ -78,8 +92,13 @@ class PlanarAlignmentManager:
                 # Create transformation to align face with XY plane
                 z_axis = gp_Dir(0, 0, 1)
 
-                # If normal points downward, flip it
+                # Create direction from normal
                 normal_dir = gp_Dir(normal[0], normal[1], normal[2])
+
+                # For selected faces, we want them to point upward (+Z) after transformation
+                # Face normals can be arbitrary, so we need to check which way to flip
+                # If the normal already points generally upward (Z > 0), keep it
+                # If it points downward (Z < 0), reverse it so it will point upward
                 if normal_dir.Z() < 0:
                     normal_dir.Reverse()
 
@@ -101,6 +120,30 @@ class PlanarAlignmentManager:
                 bbox = Bnd_Box()
                 brepbndlib.Add(transformed_shape, bbox)
                 xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
+
+                # Check if the selected face ended up on top or bottom
+                # Transform the face center to see where it is in the rotated part
+                face_center_pnt = gp_Pnt(center[0], center[1], center[2])
+                face_center_pnt.Transform(rotation_trsf)
+                face_z = face_center_pnt.Z()
+
+                # The face should be near the top (zmax) or bottom (zmin) of the bounding box
+                # If it's near the bottom, flip the part 180° around X axis
+                part_center_z = (zmin + zmax) / 2.0
+                is_on_bottom = face_z < part_center_z
+
+                if is_on_bottom:
+                    # Rotate 180° around X axis at the part center to flip top/bottom
+                    flip_trsf = gp_Trsf()
+                    flip_center = gp_Pnt((xmin + xmax) / 2, (ymin + ymax) / 2, part_center_z)
+                    flip_trsf.SetRotation(gp_Ax1(flip_center, gp_Dir(1, 0, 0)), np.pi)
+                    rotation_trsf = flip_trsf.Multiplied(rotation_trsf)
+
+                    # Recalculate bounding box after flip
+                    transformed_shape = BRepBuilderAPI_Transform(solid, rotation_trsf, False).Shape()
+                    bbox = Bnd_Box()
+                    brepbndlib.Add(transformed_shape, bbox)
+                    xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
 
                 part_transforms.append({
                     'rotation_trsf': rotation_trsf,
@@ -200,6 +243,47 @@ class PlanarAlignmentManager:
 
         self.original_transformations = []
         print("Parts reset to original orientation")
+
+    def _get_face_info(self, face) -> Optional[Tuple]:
+        """
+        Get information about a face (area, normal, center).
+
+        Returns:
+            Tuple of (face, area, normal, center) or None if face info cannot be determined
+        """
+        try:
+            # Calculate face area
+            props = GProp_GProps()
+            brepgprop.SurfaceProperties(face, props)
+            area = props.Mass()
+
+            # Get face center
+            center = props.CentreOfMass()
+            center_tuple = (center.X(), center.Y(), center.Z())
+
+            # Get face normal at center
+            surface = BRepAdaptor_Surface(face)
+            u_min, u_max, v_min, v_max = surface.FirstUParameter(), surface.LastUParameter(), \
+                                          surface.FirstVParameter(), surface.LastVParameter()
+            u_mid = (u_min + u_max) / 2.0
+            v_mid = (v_min + v_max) / 2.0
+
+            pnt = gp_Pnt()
+            vec_u = gp_Vec()
+            vec_v = gp_Vec()
+            surface.D1(u_mid, v_mid, pnt, vec_u, vec_v)
+
+            # Calculate normal (cross product of tangent vectors)
+            normal_vec = vec_u.Crossed(vec_v)
+            if normal_vec.Magnitude() < 1e-7:
+                return None
+
+            normal_vec.Normalize()
+            normal_tuple = (normal_vec.X(), normal_vec.Y(), normal_vec.Z())
+
+            return (face, area, normal_tuple, center_tuple)
+        except:
+            return None
 
     def _find_largest_planar_face(self, solid) -> Optional[Tuple]:
         """

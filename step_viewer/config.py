@@ -24,6 +24,12 @@ class ViewerConfig:
     SELECTION_OUTLINE_WIDTH = 2.0
     SELECTION_TRANSPARENCY = 0.1
 
+    # Material thickness for external face detection (mm)
+    # This controls the raycast threshold - intersections within this distance
+    # are considered self-intersections and ignored
+    # The threshold will be: max(2.5 × thickness, 5.0mm) to handle thin parts
+    MATERIAL_THICKNESS_MM = 3.0  # Default: 3mm (adjust based on your material)
+
     # Color presets
     SELECTION_COLOR_PRESETS = [
         ((1.0, 0.5, 0.0), "Orange"),
