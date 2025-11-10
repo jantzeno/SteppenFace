@@ -4,6 +4,7 @@ Keyboard event controller.
 
 from ..config import ViewerConfig
 from ..managers import ColorManager, SelectionManager
+from .view_controller import ViewController
 
 
 class KeyboardController:
@@ -18,6 +19,7 @@ class KeyboardController:
         self.config = config
         self.mode_label = None
         self.selection_label = None
+        self.view_controller = ViewController(display.View)
 
     def set_ui_labels(self, mode_label, selection_label):
         """Set references to UI labels for updates."""
@@ -80,3 +82,39 @@ class KeyboardController:
         """Cycle outline color."""
         self.color_manager.cycle_outline_color()
         self.selection_manager.update_all_colors(self.root)
+
+    # View preset shortcuts (Shift + number keys)
+    def on_key_shift_1(self, event):
+        """Set front view."""
+        self.view_controller.set_front_view()
+        print("View: Front")
+
+    def on_key_shift_2(self, event):
+        """Set back view."""
+        self.view_controller.set_back_view()
+        print("View: Back")
+
+    def on_key_shift_3(self, event):
+        """Set right view."""
+        self.view_controller.set_right_view()
+        print("View: Right")
+
+    def on_key_shift_4(self, event):
+        """Set left view."""
+        self.view_controller.set_left_view()
+        print("View: Left")
+
+    def on_key_shift_5(self, event):
+        """Set top view."""
+        self.view_controller.set_top_view()
+        print("View: Top")
+
+    def on_key_shift_6(self, event):
+        """Set bottom view."""
+        self.view_controller.set_bottom_view()
+        print("View: Bottom")
+
+    def on_key_shift_7(self, event):
+        """Set isometric view."""
+        self.view_controller.set_isometric_view()
+        print("View: Isometric")

@@ -140,6 +140,83 @@ class ViewerUI:
         self.explode_slider.set(0.0)
         self.explode_slider.pack(fill=tk.X, pady=(5, 0))
 
+        # View preset buttons section
+        self._create_view_buttons(parent)
+
+    def _create_view_buttons(self, parent):
+        """Create view preset buttons."""
+        view_separator = tk.Frame(parent, bg=self.config.SEPARATOR_BG, height=1)
+        view_separator.pack(fill=tk.X, pady=(10, 0))
+
+        view_frame = tk.Frame(parent, bg=self.config.PANEL_BG)
+        view_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        view_label = tk.Label(
+            view_frame, text="View Presets", bg=self.config.PANEL_BG, fg='#ffffff',
+            font=('Arial', 9, 'bold'), anchor='w'
+        )
+        view_label.pack(fill=tk.X, pady=(0, 5))
+
+        # Create button grid (2 columns x 4 rows)
+        button_style = {
+            'bg': '#3a3b3f',
+            'fg': '#ffffff',
+            'activebackground': '#00e0ff',
+            'activeforeground': '#000000',
+            'relief': 'raised',
+            'borderwidth': 1,
+            'font': ('Arial', 8),
+            'width': 8,
+            'height': 1
+        }
+
+        # Store button commands (will be set later by viewer)
+        self.view_buttons = {}
+
+        # Row 1: Front and Back
+        row1 = tk.Frame(view_frame, bg=self.config.PANEL_BG)
+        row1.pack(fill=tk.X, pady=2)
+
+        btn_front = tk.Button(row1, text="Front (!)", **button_style)
+        btn_front.pack(side=tk.LEFT, padx=(0, 5), expand=True, fill=tk.X)
+        self.view_buttons['front'] = btn_front
+
+        btn_back = tk.Button(row1, text="Back (@)", **button_style)
+        btn_back.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.view_buttons['back'] = btn_back
+
+        # Row 2: Right and Left
+        row2 = tk.Frame(view_frame, bg=self.config.PANEL_BG)
+        row2.pack(fill=tk.X, pady=2)
+
+        btn_right = tk.Button(row2, text="Right (#)", **button_style)
+        btn_right.pack(side=tk.LEFT, padx=(0, 5), expand=True, fill=tk.X)
+        self.view_buttons['right'] = btn_right
+
+        btn_left = tk.Button(row2, text="Left ($)", **button_style)
+        btn_left.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.view_buttons['left'] = btn_left
+
+        # Row 3: Top and Bottom
+        row3 = tk.Frame(view_frame, bg=self.config.PANEL_BG)
+        row3.pack(fill=tk.X, pady=2)
+
+        btn_top = tk.Button(row3, text="Top (%)", **button_style)
+        btn_top.pack(side=tk.LEFT, padx=(0, 5), expand=True, fill=tk.X)
+        self.view_buttons['top'] = btn_top
+
+        btn_bottom = tk.Button(row3, text="Bottom (^)", **button_style)
+        btn_bottom.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.view_buttons['bottom'] = btn_bottom
+
+        # Row 4: Isometric (centered)
+        row4 = tk.Frame(view_frame, bg=self.config.PANEL_BG)
+        row4.pack(fill=tk.X, pady=2)
+
+        btn_iso = tk.Button(row4, text="Isometric (&)", **button_style)
+        btn_iso.pack(expand=True, fill=tk.X)
+        self.view_buttons['isometric'] = btn_iso
+
     def populate_parts_tree(self, parts_list: List, deduplication_manager=None):
         """Populate the parts tree with parts."""
         if not self.parts_tree:

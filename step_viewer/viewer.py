@@ -61,6 +61,9 @@ class StepViewer:
         # Setup explode slider callback
         self._setup_explode_slider()
 
+        # Setup view buttons
+        self._setup_view_buttons()
+
         # Print controls
         self._print_controls()
 
@@ -152,6 +155,15 @@ class StepViewer:
         self.canvas.bind("<D>", lambda e: self.toggle_duplicate_visibility())
         self.canvas.bind("<p>", lambda e: self.toggle_planar_alignment())
         self.canvas.bind("<P>", lambda e: self.toggle_planar_alignment())
+
+        # Bind view preset keys (Shift + number keys)
+        self.canvas.bind("<exclam>", self.keyboard_controller.on_key_shift_1)  # Shift+1 = ! (Front)
+        self.canvas.bind("<at>", self.keyboard_controller.on_key_shift_2)  # Shift+2 = @ (Back)
+        self.canvas.bind("<numbersign>", self.keyboard_controller.on_key_shift_3)  # Shift+3 = # (Right)
+        self.canvas.bind("<dollar>", self.keyboard_controller.on_key_shift_4)  # Shift+4 = $ (Left)
+        self.canvas.bind("<percent>", self.keyboard_controller.on_key_shift_5)  # Shift+5 = % (Top)
+        self.canvas.bind("<asciicircum>", self.keyboard_controller.on_key_shift_6)  # Shift+6 = ^ (Bottom)
+        self.canvas.bind("<ampersand>", self.keyboard_controller.on_key_shift_7)  # Shift+7 = & (Isometric)
 
         self.canvas.focus_set()
 
@@ -288,6 +300,18 @@ class StepViewer:
 
         self.ui.explode_slider.config(command=on_slider_change)
 
+    def _setup_view_buttons(self):
+        """Setup view preset button callbacks."""
+        view_controller = self.keyboard_controller.view_controller
+
+        self.ui.view_buttons['front'].config(command=lambda: view_controller.set_front_view())
+        self.ui.view_buttons['back'].config(command=lambda: view_controller.set_back_view())
+        self.ui.view_buttons['right'].config(command=lambda: view_controller.set_right_view())
+        self.ui.view_buttons['left'].config(command=lambda: view_controller.set_left_view())
+        self.ui.view_buttons['top'].config(command=lambda: view_controller.set_top_view())
+        self.ui.view_buttons['bottom'].config(command=lambda: view_controller.set_bottom_view())
+        self.ui.view_buttons['isometric'].config(command=lambda: view_controller.set_isometric_view())
+
     def _print_controls(self):
         """Print viewer controls to console."""
         print("\n" + "="*60)
@@ -310,6 +334,15 @@ class StepViewer:
         print("  - '1': Cycle selection fill color (in selection mode)")
         print("  - '2': Cycle outline color (in selection mode)")
         print("  - Explode slider: Separate parts")
+        print("\nView Presets (Shift + number keys or click buttons):")
+        print("  - Shift+1 (!): Front view")
+        print("  - Shift+2 (@): Back view")
+        print("  - Shift+3 (#): Right view")
+        print("  - Shift+4 ($): Left view")
+        print("  - Shift+5 (%): Top view")
+        print("  - Shift+6 (^): Bottom view")
+        print("  - Shift+7 (&): Isometric view")
+        print("\nOther:")
         print("  - 'q' or ESC: Quit")
 
     def _final_update(self):
