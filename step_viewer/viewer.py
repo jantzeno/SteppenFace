@@ -7,7 +7,7 @@ from typing import Optional
 import tkinter as tk
 
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRGB
-from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine
+from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine, Aspect_TOTP_RIGHT_LOWER
 
 from .config import ViewerConfig
 from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager
@@ -265,6 +265,19 @@ class StepViewer:
         for solid, color, ais_shape in self.parts_list:
             self.display.Context.Activate(ais_shape, 4, False)  # 4 = TopAbs_FACE
             ais_shape.SetHilightMode(1)
+
+        # Add XYZ axis triedron widget
+        self._add_triedron()
+
+    def _add_triedron(self):
+        """Add XYZ axis orientation widget to the view."""
+        try:
+            # Enable the view corner trihedron
+            # Arguments: position (Aspect_TypeOfTriedronPosition), color (Quantity_Color), scale, asWireframe
+            self.view.TriedronDisplay(Aspect_TOTP_RIGHT_LOWER, Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB), 0.1, True)
+            print("XYZ axis widget added to view")
+        except Exception as e:
+            print(f"Warning: Could not add XYZ axis widget: {e}")
 
     def _setup_explode_slider(self):
         """Setup the explode slider callback."""
