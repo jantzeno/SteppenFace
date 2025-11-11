@@ -21,12 +21,12 @@ from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 class PlanarAlignmentManager:
     """Manages planar alignment - laying parts flat on a surface."""
 
-    def __init__(self, base_plate_manager=None):
+    def __init__(self, plate_manager=None):
         self.parts_data = []
         self.is_aligned = False
         self.original_transformations = []  # Store original transforms for reset
         self.selected_faces_per_part = {}  # Maps part index to selected face for orientation
-        self.base_plate_manager = base_plate_manager  # Reference to base plate manager
+        self.plate_manager = plate_manager  # Reference to plate manager
 
     def initialize_parts(self, parts_list: List):
         """
@@ -52,14 +52,14 @@ class PlanarAlignmentManager:
         """
         self.selected_faces_per_part = selected_faces_map
 
-    def set_base_plate_manager(self, base_plate_manager):
+    def set_plate_manager(self, plate_manager):
         """
-        Set the base plate manager reference.
+        Set the plate manager reference.
 
         Args:
-            base_plate_manager: The BasePlateManager instance
+            plate_manager: The PlateManager instance
         """
-        self.base_plate_manager = base_plate_manager
+        self.plate_manager = plate_manager
 
     def toggle_planar_alignment(self, display, root):
         """Toggle planar alignment on/off."""
@@ -224,9 +224,9 @@ class PlanarAlignmentManager:
             pt['ais_shape'].SetLocalTransformation(final_trsf)
             display.Context.Redisplay(pt['ais_shape'], True)
 
-        # Show base plate if available
-        if self.base_plate_manager:
-            self.base_plate_manager.show(display)
+        # Show plates
+        if self.plate_manager:
+            self.plate_manager.show_all_plates(display)
 
         # Refresh display and fit view
         display.Context.UpdateCurrentViewer()
@@ -250,9 +250,9 @@ class PlanarAlignmentManager:
 
                 display.Context.Redisplay(ais_shape, True)
 
-        # Hide base plate if available
-        if self.base_plate_manager:
-            self.base_plate_manager.hide(display)
+        # Hide plates
+        if self.plate_manager:
+            self.plate_manager.hide_all_plates(display)
 
         # Refresh display and fit view
         display.Context.UpdateCurrentViewer()

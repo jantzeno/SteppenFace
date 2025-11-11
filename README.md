@@ -10,6 +10,9 @@ A modular, feature-rich CAD file viewer for STEP files with interactive face sel
 - **Color Management**: Dynamic color schemes with keyboard shortcuts
 - **Parts Tree**: Navigate model hierarchy in a tree view
 - **Anti-aliasing**: Smooth rendering with configurable MSAA
+- **Planar Alignment**: Lay parts flat for CNC cutting visualization
+- **Multi-Plate Management**: Organize parts across multiple material sheets with automatic grid layout
+- **Part Association**: Automatic part-to-plate assignment based on position
 
 ## Installation
 
@@ -44,7 +47,11 @@ step_viewer/
 ├── managers/                # Business logic
 │   ├── __init__.py
 │   ├── color_manager.py     # Color preset management
-│   └── selection_manager.py # Face selection state
+│   ├── selection_manager.py # Face selection state
+│   ├── explode_manager.py   # Part explosion for viewing
+│   ├── planar_alignment_manager.py  # Planar view management
+│   ├── plate_manager.py     # Multi-plate management and visualization
+│   └── deduplication_manager.py     # Duplicate part detection
 │
 ├── rendering/               # Graphics rendering
 │   ├── __init__.py
@@ -100,6 +107,24 @@ Each class has one clear purpose:
 - **2**: Cycle outline color
 - **C**: Clear all selections
 - **S**: Return to navigation mode
+
+### Planar View & Plate Management
+- **P**: Toggle planar alignment (lay parts flat)
+- **D**: Toggle duplicate part visibility
+- **L**: Auto-select largest external face per part
+- **Explode Slider**: Separate parts in 3D view
+- **Material Thickness Slider**: Adjust raycast threshold for external face detection
+- **Plate Controls** (in sidebar):
+  - **Add Plate**: Create a new material sheet
+  - **Delete Plate**: Remove selected plate (parts remain in model)
+  - **Rename Plate**: Assign descriptive names to plates
+  - **Arrange Parts**: Placeholder for future auto-arrangement logic
+
+When planar alignment is enabled:
+- Parts are automatically laid flat based on selected faces
+- Parts are arranged in a grid layout
+- Multiple plates are shown with automatic grid spacing
+- Parts are auto-assigned to plates based on their 2D position
 
 ## Configuration
 

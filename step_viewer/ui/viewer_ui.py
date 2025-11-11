@@ -168,6 +168,9 @@ class ViewerUI:
         # View preset buttons section
         self._create_view_buttons(parent)
 
+        # Plate management section
+        self._create_plate_controls(parent)
+
     def _create_view_buttons(self, parent):
         """Create view preset buttons."""
         view_separator = tk.Frame(parent, bg=self.config.SEPARATOR_BG, height=1)
@@ -241,6 +244,112 @@ class ViewerUI:
         btn_iso = tk.Button(row4, text="Isometric (&)", **button_style)
         btn_iso.pack(expand=True, fill=tk.X)
         self.view_buttons['isometric'] = btn_iso
+
+    def _create_plate_controls(self, parent):
+        """Create plate management controls."""
+        plate_separator = tk.Frame(parent, bg=self.config.SEPARATOR_BG, height=1)
+        plate_separator.pack(fill=tk.X, pady=(10, 0))
+
+        plate_frame = tk.Frame(parent, bg=self.config.PANEL_BG)
+        plate_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        plate_label = tk.Label(
+            plate_frame, text="Plate Management", bg=self.config.PANEL_BG, fg='#ffffff',
+            font=('Arial', 9, 'bold'), anchor='w'
+        )
+        plate_label.pack(fill=tk.X, pady=(0, 5))
+
+        # Button style for plate controls
+        button_style = {
+            'bg': '#3a3b3f',
+            'fg': '#ffffff',
+            'activebackground': '#00e0ff',
+            'activeforeground': '#000000',
+            'relief': 'raised',
+            'borderwidth': 1,
+            'font': ('Arial', 8),
+            'height': 1
+        }
+
+        # Store plate control widgets
+        self.plate_widgets = {}
+
+        # Plate list with scrollbar
+        list_frame = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+
+        self.plate_listbox = tk.Listbox(
+            list_frame,
+            bg=self.config.PANEL_BG,
+            fg='#ffffff',
+            selectbackground='#3a3b3f',
+            selectforeground='#00e0ff',
+            font=('Arial', 8),
+            height=4,
+            borderwidth=1,
+            relief='sunken',
+            highlightthickness=0
+        )
+        self.plate_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        plate_scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.plate_listbox.yview)
+        plate_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.plate_listbox.configure(yscrollcommand=plate_scrollbar.set)
+
+        # Button row 1: Add and Delete
+        btn_row1 = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
+        btn_row1.pack(fill=tk.X, pady=2)
+
+        btn_add_plate = tk.Button(btn_row1, text="Add Plate", **button_style)
+        btn_add_plate.pack(side=tk.LEFT, padx=(0, 5), expand=True, fill=tk.X)
+        self.plate_widgets['add'] = btn_add_plate
+
+        btn_delete_plate = tk.Button(btn_row1, text="Delete Plate", **button_style)
+        btn_delete_plate.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.plate_widgets['delete'] = btn_delete_plate
+
+        # Button row 2: Rename
+        btn_row2 = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
+        btn_row2.pack(fill=tk.X, pady=2)
+
+        btn_rename_plate = tk.Button(btn_row2, text="Rename Plate", **button_style)
+        btn_rename_plate.pack(expand=True, fill=tk.X)
+        self.plate_widgets['rename'] = btn_rename_plate
+
+        # Button row 3: Arrange (placeholder)
+        btn_row3 = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
+        btn_row3.pack(fill=tk.X, pady=2)
+
+        btn_arrange = tk.Button(btn_row3, text="Arrange Parts", **button_style)
+        btn_arrange.pack(expand=True, fill=tk.X)
+        self.plate_widgets['arrange'] = btn_arrange
+
+        # Info label showing plate count and part association
+        self.plate_info_label = tk.Label(
+            plate_frame, text="Plates: 0 | Parts assigned: 0",
+            bg=self.config.PANEL_BG, fg='#aaaaaa',
+            font=('Arial', 7), anchor='w'
+        )
+        self.plate_info_label.pack(fill=tk.X, pady=(5, 0))
+
+    def update_plate_list(self, plate_manager):
+        """Update the plate list display."""
+        if not hasattr(self, 'plate_listbox'):
+            return
+
+        # Clear current list
+        self.plate_listbox.delete(0, tk.END)
+
+        # Add all plates
+        for plate in plate_manager.plates:
+            part_count = len(plate.part_indices)
+            display_text = f"{plate.name} ({part_count} part{'s' if part_count != 1 else ''})"
+            self.plate_listbox.insert(tk.END, display_text)
+
+        # Update info label
+        total_plates = plate_manager.get_plate_count()
+        total_assigned = sum(len(plate.part_indices) for plate in plate_manager.plates)
+        self.plate_info_label.config(text=f"Plates: {total_plates} | Parts assigned: {total_assigned}")
 
     def populate_parts_tree(self, parts_list: List, deduplication_manager=None):
         """Populate the parts tree with parts."""

@@ -10,7 +10,7 @@ from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRG
 from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine, Aspect_TOTP_RIGHT_LOWER
 
 from .config import ViewerConfig
-from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager, BasePlateManager
+from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager, PlateManager
 from .controllers import MouseController, KeyboardController
 from .loaders import StepLoader
 from .rendering import MaterialRenderer
@@ -67,6 +67,9 @@ class StepViewer:
         # Setup view buttons
         self._setup_view_buttons()
 
+        # Setup plate controls
+        self._setup_plate_controls()
+
         # Print controls
         self._print_controls()
 
@@ -97,12 +100,11 @@ class StepViewer:
         self.explode_manager = ExplodeManager()
         self.explode_manager.selection_manager = self.selection_manager  # Link for transformation updates
         self.deduplication_manager = DeduplicationManager()
-        self.base_plate_manager = BasePlateManager(
+        self.plate_manager = PlateManager(
             self.config.SHEET_WIDTH_MM,
             self.config.SHEET_HEIGHT_MM
         )
-        self.planar_alignment_manager = PlanarAlignmentManager()
-        self.planar_alignment_manager.set_base_plate_manager(self.base_plate_manager)
+        self.planar_alignment_manager = PlanarAlignmentManager(self.plate_manager)
         self.selection_manager.set_planar_alignment_manager(self.planar_alignment_manager)
 
         # Initialize controllers
@@ -476,6 +478,137 @@ class StepViewer:
         self.ui.view_buttons['bottom'].config(command=lambda: view_controller.set_bottom_view())
         self.ui.view_buttons['isometric'].config(command=lambda: view_controller.set_isometric_view())
 
+    def _setup_plate_controls(self):
+        """Setup plate management button callbacks."""
+        from tkinter import simpledialog, messagebox
+
+        self.ui.plate_widgets['add'].config(command=self._add_plate)
+        self.ui.plate_widgets['delete'].config(command=self._delete_plate)
+        self.ui.plate_widgets['rename'].config(command=self._rename_plate)
+        self.ui.plate_widgets['arrange'].config(command=self._arrange_parts_on_plates)
+
+        # Initialize plate list display
+        self.ui.update_plate_list(self.plate_manager)
+
+    def _add_plate(self):
+        """Add a new plate."""
+        from tkinter import simpledialog
+
+        # Ask for plate name
+        name = simpledialog.askstring(
+            "Add Plate",
+            "Enter name for new plate:",
+            initialvalue=f"Plate {self.plate_manager.next_plate_id}",
+            parent=self.root
+        )
+
+        if name:
+            plate = self.plate_manager.add_plate(name)
+            print(f"Added new plate: {plate.name}")
+
+            # Update UI
+            self.ui.update_plate_list(self.plate_manager)
+
+            # If planar alignment is active, update the display
+            if self.planar_alignment_manager.is_aligned:
+                self.plate_manager.update_all_plates(self.display)
+                self.display.Repaint()
+
+        self.canvas.focus_set()
+
+    def _delete_plate(self):
+        """Delete the selected plate."""
+        from tkinter import messagebox
+
+        # Get selected plate
+        selection = self.ui.plate_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a plate to delete.", parent=self.root)
+            self.canvas.focus_set()
+            return
+
+        plate_idx = selection[0]
+        if plate_idx >= len(self.plate_manager.plates):
+            self.canvas.focus_set()
+            return
+
+        plate = self.plate_manager.plates[plate_idx]
+
+        # Confirm deletion
+        if messagebox.askyesno(
+            "Delete Plate",
+            f"Delete '{plate.name}'?\nParts will not be deleted, only disassociated.",
+            parent=self.root
+        ):
+            if self.plate_manager.remove_plate(plate.id):
+                print(f"Deleted plate: {plate.name}")
+
+                # Update UI
+                self.ui.update_plate_list(self.plate_manager)
+
+                # If planar alignment is active, update the display
+                if self.planar_alignment_manager.is_aligned:
+                    self.plate_manager.update_all_plates(self.display)
+                    self.display.Repaint()
+            else:
+                messagebox.showwarning(
+                    "Cannot Delete",
+                    "Cannot delete the last plate.",
+                    parent=self.root
+                )
+
+        self.canvas.focus_set()
+
+    def _rename_plate(self):
+        """Rename the selected plate."""
+        from tkinter import simpledialog
+
+        # Get selected plate
+        selection = self.ui.plate_listbox.curselection()
+        if not selection:
+            from tkinter import messagebox
+            messagebox.showwarning("No Selection", "Please select a plate to rename.", parent=self.root)
+            self.canvas.focus_set()
+            return
+
+        plate_idx = selection[0]
+        if plate_idx >= len(self.plate_manager.plates):
+            self.canvas.focus_set()
+            return
+
+        plate = self.plate_manager.plates[plate_idx]
+
+        # Ask for new name
+        new_name = simpledialog.askstring(
+            "Rename Plate",
+            "Enter new name for plate:",
+            initialvalue=plate.name,
+            parent=self.root
+        )
+
+        if new_name and new_name != plate.name:
+            if self.plate_manager.rename_plate(plate.id, new_name):
+                print(f"Renamed plate '{plate.name}' to '{new_name}'")
+
+                # Update UI
+                self.ui.update_plate_list(self.plate_manager)
+
+        self.canvas.focus_set()
+
+    def _arrange_parts_on_plates(self):
+        """Arrange parts on plates (placeholder for future logic)."""
+        from tkinter import messagebox
+
+        messagebox.showinfo(
+            "Arrange Parts",
+            "Part arrangement logic is not yet implemented.\n\n"
+            "In the future, this will automatically arrange parts on the selected plate "
+            "to optimize space usage.",
+            parent=self.root
+        )
+
+        self.canvas.focus_set()
+
     def _print_controls(self):
         """Print viewer controls to console."""
         print("\n" + "="*60)
@@ -507,6 +640,12 @@ class StepViewer:
         print("  - Shift+5 (%): Top view")
         print("  - Shift+6 (^): Bottom view")
         print("  - Shift+7 (&): Isometric view")
+        print("\nPlate Management:")
+        print("  - Add Plate: Create a new material plate")
+        print("  - Delete Plate: Remove selected plate (parts remain)")
+        print("  - Rename Plate: Give plates descriptive names")
+        print("  - Arrange Parts: Placeholder for auto-arrangement (future)")
+        print("  - Parts are auto-assigned to plates when planar view is enabled")
         print("\nOther:")
         print("  - 'q' or ESC: Quit")
 
@@ -618,7 +757,14 @@ class StepViewer:
         self.selection_manager.update_face_transformations()
 
         if is_aligned:
+            # Associate parts with plates based on their positions
+            self.plate_manager.associate_parts_by_position(self.parts_list, self.display)
+
+            # Update plate list UI
+            self.ui.update_plate_list(self.plate_manager)
+
             print("Planar alignment enabled - parts laid flat")
+            print(f"Parts automatically associated with {self.plate_manager.get_plate_count()} plate(s)")
         else:
             print("Planar alignment disabled - parts restored")
 
