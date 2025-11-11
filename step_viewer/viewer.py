@@ -10,7 +10,7 @@ from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRG
 from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine, Aspect_TOTP_RIGHT_LOWER
 
 from .config import ViewerConfig
-from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager
+from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager, BasePlateManager
 from .controllers import MouseController, KeyboardController
 from .loaders import StepLoader
 from .rendering import MaterialRenderer
@@ -97,7 +97,12 @@ class StepViewer:
         self.explode_manager = ExplodeManager()
         self.explode_manager.selection_manager = self.selection_manager  # Link for transformation updates
         self.deduplication_manager = DeduplicationManager()
+        self.base_plate_manager = BasePlateManager(
+            self.config.SHEET_WIDTH_MM,
+            self.config.SHEET_HEIGHT_MM
+        )
         self.planar_alignment_manager = PlanarAlignmentManager()
+        self.planar_alignment_manager.set_base_plate_manager(self.base_plate_manager)
         self.selection_manager.set_planar_alignment_manager(self.planar_alignment_manager)
 
         # Initialize controllers

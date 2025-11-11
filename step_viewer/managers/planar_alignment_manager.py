@@ -21,11 +21,12 @@ from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 class PlanarAlignmentManager:
     """Manages planar alignment - laying parts flat on a surface."""
 
-    def __init__(self):
+    def __init__(self, base_plate_manager=None):
         self.parts_data = []
         self.is_aligned = False
         self.original_transformations = []  # Store original transforms for reset
         self.selected_faces_per_part = {}  # Maps part index to selected face for orientation
+        self.base_plate_manager = base_plate_manager  # Reference to base plate manager
 
     def initialize_parts(self, parts_list: List):
         """
@@ -50,6 +51,15 @@ class PlanarAlignmentManager:
             selected_faces_map: Dict mapping part index to selected face
         """
         self.selected_faces_per_part = selected_faces_map
+
+    def set_base_plate_manager(self, base_plate_manager):
+        """
+        Set the base plate manager reference.
+
+        Args:
+            base_plate_manager: The BasePlateManager instance
+        """
+        self.base_plate_manager = base_plate_manager
 
     def toggle_planar_alignment(self, display, root):
         """Toggle planar alignment on/off."""
@@ -214,6 +224,10 @@ class PlanarAlignmentManager:
             pt['ais_shape'].SetLocalTransformation(final_trsf)
             display.Context.Redisplay(pt['ais_shape'], True)
 
+        # Show base plate if available
+        if self.base_plate_manager:
+            self.base_plate_manager.show(display)
+
         # Refresh display and fit view
         display.Context.UpdateCurrentViewer()
         display.FitAll()
@@ -235,6 +249,10 @@ class PlanarAlignmentManager:
                     ais_shape.SetLocalTransformation(gp_Trsf())
 
                 display.Context.Redisplay(ais_shape, True)
+
+        # Hide base plate if available
+        if self.base_plate_manager:
+            self.base_plate_manager.hide(display)
 
         # Refresh display and fit view
         display.Context.UpdateCurrentViewer()

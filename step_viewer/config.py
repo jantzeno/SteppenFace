@@ -30,6 +30,14 @@ class ViewerConfig:
     # The threshold will be: max(2.5 × thickness, 5.0mm) to handle thin parts
     MATERIAL_THICKNESS_MM = 3.0  # Default: 3mm (adjust based on your material)
 
+    # Sheet/platter size for planar view (mm)
+    # Common laser cutter bed sizes:
+    # - 600x400mm (small)
+    # - 900x600mm (medium)
+    # - 1300x900mm (large)
+    SHEET_WIDTH_MM = 600.0  # Default: 600mm
+    SHEET_HEIGHT_MM = 400.0  # Default: 400mm
+
     # Color presets
     SELECTION_COLOR_PRESETS = [
         ((1.0, 0.5, 0.0), "Orange"),
