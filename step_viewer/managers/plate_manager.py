@@ -28,12 +28,7 @@ class ExclusionZone:
 
     def get_bounds(self) -> Tuple[float, float, float, float]:
         """Get the bounds of the exclusion zone (xmin, ymin, xmax, ymax)."""
-        return (
-            self.x,
-            self.y,
-            self.x + self.width,
-            self.y + self.height
-        )
+        return (self.x, self.y, self.x + self.width, self.y + self.height)
 
     def contains_point(self, x: float, y: float) -> bool:
         """Check if a 2D point is within the exclusion zone."""
@@ -61,10 +56,16 @@ class Plate:
     height_mm: float
     x_offset: float = 0.0  # Position in grid
     y_offset: float = 0.0  # Position in grid
-    part_indices: Set[int] = field(default_factory=set)  # Parts associated with this plate
-    exclusion_zones: List[ExclusionZone] = field(default_factory=list)  # Off-limits areas
+    part_indices: Set[int] = field(
+        default_factory=set
+    )  # Parts associated with this plate
+    exclusion_zones: List[ExclusionZone] = field(
+        default_factory=list
+    )  # Off-limits areas
     ais_shape: Optional[AIS_Shape] = None  # Visual representation
-    next_exclusion_id: int = field(default=1, init=False)  # Counter for exclusion zone IDs
+    next_exclusion_id: int = field(
+        default=1, init=False
+    )  # Counter for exclusion zone IDs
 
     def get_bounds(self) -> Tuple[float, float, float, float]:
         """Get the bounds of the plate (xmin, ymin, xmax, ymax)."""
@@ -72,7 +73,7 @@ class Plate:
             self.x_offset,
             self.y_offset,
             self.x_offset + self.width_mm,
-            self.y_offset + self.height_mm
+            self.y_offset + self.height_mm,
         )
 
     def contains_point(self, x: float, y: float) -> bool:
@@ -80,7 +81,9 @@ class Plate:
         xmin, ymin, xmax, ymax = self.get_bounds()
         return xmin <= x <= xmax and ymin <= y <= ymax
 
-    def add_exclusion_zone(self, x: float, y: float, width: float, height: float) -> ExclusionZone:
+    def add_exclusion_zone(
+        self, x: float, y: float, width: float, height: float
+    ) -> ExclusionZone:
         """
         Add an exclusion zone to the plate.
         Coordinates are relative to the plate's origin (not global grid coordinates).
@@ -95,11 +98,7 @@ class Plate:
             The created ExclusionZone
         """
         zone = ExclusionZone(
-            id=self.next_exclusion_id,
-            x=x,
-            y=y,
-            width=width,
-            height=height
+            id=self.next_exclusion_id, x=x, y=y, width=width, height=height
         )
         self.exclusion_zones.append(zone)
         self.next_exclusion_id += 1
@@ -125,7 +124,9 @@ class Plate:
         """Remove all exclusion zones from the plate."""
         self.exclusion_zones.clear()
 
-    def is_area_available(self, x: float, y: float, width: float, height: float) -> bool:
+    def is_area_available(
+        self, x: float, y: float, width: float, height: float
+    ) -> bool:
         """
         Check if a rectangular area is available (not overlapping any exclusion zones).
         Coordinates are relative to the plate's origin.
@@ -148,7 +149,9 @@ class Plate:
 class PlateManager:
     """Manages multiple material plates with automatic grid layout and part associations."""
 
-    def __init__(self, default_width_mm: float = 600.0, default_height_mm: float = 400.0):
+    def __init__(
+        self, default_width_mm: float = 600.0, default_height_mm: float = 400.0
+    ):
         """
         Initialize plate manager.
 
@@ -182,7 +185,7 @@ class PlateManager:
             id=self.next_plate_id,
             name=name,
             width_mm=self.default_width_mm,
-            height_mm=self.default_height_mm
+            height_mm=self.default_height_mm,
         )
 
         self.plates.append(plate)
@@ -414,7 +417,9 @@ class PlateManager:
         # Create a rectangular face at Z=0 with the plate's offset
         p1 = gp_Pnt(plate.x_offset, plate.y_offset, 0)
         p2 = gp_Pnt(plate.x_offset + plate.width_mm, plate.y_offset, 0)
-        p3 = gp_Pnt(plate.x_offset + plate.width_mm, plate.y_offset + plate.height_mm, 0)
+        p3 = gp_Pnt(
+            plate.x_offset + plate.width_mm, plate.y_offset + plate.height_mm, 0
+        )
         p4 = gp_Pnt(plate.x_offset, plate.y_offset + plate.height_mm, 0)
 
         # Create the plate face using a polygon wire
@@ -435,7 +440,9 @@ class PlateManager:
         # Style the plate - semi-transparent gray with slight color variation
         # Use different shades for different plates
         base_intensity = 0.25 + (plate.id % 3) * 0.05
-        plate_color = Quantity_Color(base_intensity, base_intensity, base_intensity + 0.05, Quantity_TOC_RGB)
+        plate_color = Quantity_Color(
+            base_intensity, base_intensity, base_intensity + 0.05, Quantity_TOC_RGB
+        )
         plate.ais_shape.SetColor(plate_color)
         plate.ais_shape.SetTransparency(0.7)  # Semi-transparent
 

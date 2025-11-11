@@ -22,7 +22,7 @@ class CanvasManager:
         self.config = config
         self.display = None
         self.canvas = None
-        self.resize_state = {'pending': False, 'initialized': False}
+        self.resize_state = {"pending": False, "initialized": False}
 
     def init_display(self, parent) -> Any:
         """
@@ -38,15 +38,23 @@ class CanvasManager:
 
         self.canvas = tkViewer3d(parent)
         self.canvas.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
-        self.canvas.configure(borderwidth=0, highlightthickness=0, relief='flat',
-                        bg=self.config.DARK_BG, width=0, height=0)
+        self.canvas.configure(
+            borderwidth=0,
+            highlightthickness=0,
+            relief="flat",
+            bg=self.config.DARK_BG,
+            width=0,
+            height=0,
+        )
 
         self.root.update_idletasks()
         self.display = self.canvas._display
 
         return self.display
 
-    def display_model(self, shape, explode_manager, planar_alignment_manager) -> List[Tuple]:
+    def display_model(
+        self, shape, explode_manager, planar_alignment_manager
+    ) -> List[Tuple]:
         """
         Display the loaded model with colored parts.
 
@@ -66,7 +74,9 @@ class CanvasManager:
 
         if len(solids) == 0:
             logger.info("No individual solids found, displaying shape as single object")
-            color = Quantity_Color(palette[0][0], palette[0][1], palette[0][2], Quantity_TOC_RGB)
+            color = Quantity_Color(
+                palette[0][0], palette[0][1], palette[0][2], Quantity_TOC_RGB
+            )
             ais_shape = self.display.DisplayShape(shape, color=color, update=False)[0]
             MaterialRenderer.apply_matte_material(ais_shape, color)
             parts_list.append((shape, palette[0], ais_shape))
@@ -75,7 +85,9 @@ class CanvasManager:
             for i, solid in enumerate(solids):
                 r, g, b = palette[i % len(palette)]
                 color = Quantity_Color(r, g, b, Quantity_TOC_RGB)
-                ais_shape = self.display.DisplayShape(solid, color=color, update=False)[0]
+                ais_shape = self.display.DisplayShape(solid, color=color, update=False)[
+                    0
+                ]
                 MaterialRenderer.apply_matte_material(ais_shape, color)
                 parts_list.append((solid, (r, g, b), ais_shape))
 
@@ -104,7 +116,7 @@ class CanvasManager:
             self.config.BACKGROUND_COLOR[0],
             self.config.BACKGROUND_COLOR[1],
             self.config.BACKGROUND_COLOR[2],
-            Quantity_TOC_sRGB
+            Quantity_TOC_sRGB,
         )
         self.display.View.SetBgGradientStyle(Aspect_GFM_VER)
         self.display.View.SetBgGradientColors(bg_color, bg_color)
@@ -116,8 +128,13 @@ class CanvasManager:
         render_params.NbMsaaSamples = self.config.MSAA_SAMPLES
 
         # xyz widget
-        self.display.View.TriedronDisplay(Aspect_TOTP_RIGHT_LOWER, Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB), 0.1, True)
-        
+        self.display.View.TriedronDisplay(
+            Aspect_TOTP_RIGHT_LOWER,
+            Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB),
+            0.1,
+            True,
+        )
+
         # Selection highlighting
         logger.info(f"\nApplying selection colors:")
         logger.info(f"  Fill: RGB{self.config.SELECTION_COLOR}")
@@ -139,8 +156,12 @@ class CanvasManager:
             select_drawer.SetTransparency(self.config.SELECTION_TRANSPARENCY)
             select_drawer.SetFaceBoundaryDraw(True)
             select_drawer.FaceBoundaryAspect().SetColor(outline_color)
-            select_drawer.FaceBoundaryAspect().SetWidth(self.config.SELECTION_OUTLINE_WIDTH)
-            select_drawer.FaceBoundaryAspect().SetTypeOfLine(Aspect_TypeOfLine.Aspect_TOL_SOLID)
+            select_drawer.FaceBoundaryAspect().SetWidth(
+                self.config.SELECTION_OUTLINE_WIDTH
+            )
+            select_drawer.FaceBoundaryAspect().SetTypeOfLine(
+                Aspect_TypeOfLine.Aspect_TOL_SOLID
+            )
 
             logger.info("Context-level selection styling applied successfully")
         except Exception as e:
@@ -153,12 +174,13 @@ class CanvasManager:
 
     def setup_resize_handler(self):
         """Setup resize event handler with debouncing."""
+
         def on_resize(event):
-            if not self.resize_state['initialized']:
+            if not self.resize_state["initialized"]:
                 return
 
-            if not self.resize_state['pending']:
-                self.resize_state['pending'] = True
+            if not self.resize_state["pending"]:
+                self.resize_state["pending"] = True
 
                 def do_resize():
                     try:
@@ -167,11 +189,11 @@ class CanvasManager:
                     except Exception as e:
                         logger.warning(f"Could not resize view: {e}")
                     finally:
-                        self.resize_state['pending'] = False
+                        self.resize_state["pending"] = False
 
                 self.root.after(10, do_resize)
 
-        self.canvas.bind('<Configure>', on_resize)
+        self.canvas.bind("<Configure>", on_resize)
 
     def final_update(self):
         """Final update after UI is fully initialized."""
@@ -180,6 +202,6 @@ class CanvasManager:
             self.display.Context.UpdateCurrentViewer()
             self.display.FitAll()
             self.display.Repaint()
-            self.resize_state['initialized'] = True
+            self.resize_state["initialized"] = True
         except Exception as e:
             logger.warning(f"Could not perform final update: {e}")

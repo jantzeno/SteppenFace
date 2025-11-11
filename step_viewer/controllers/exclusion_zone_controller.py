@@ -16,7 +16,9 @@ from ..managers.log_manager import logger
 class ExclusionZoneController:
     """Manages exclusion zone drawing and interaction."""
 
-    def __init__(self, root: tk.Tk, canvas, display, ui, plate_manager, planar_alignment_manager):
+    def __init__(
+        self, root: tk.Tk, canvas, display, ui, plate_manager, planar_alignment_manager
+    ):
         self.root = root
         self.canvas = canvas
         self.display = display
@@ -32,8 +34,12 @@ class ExclusionZoneController:
 
     def setup_controls(self):
         """Setup exclusion zone control button callbacks."""
-        self.ui.plate_widgets['draw_exclusion'].config(command=self.toggle_exclusion_draw_mode)
-        self.ui.plate_widgets['clear_exclusions'].config(command=self.clear_exclusion_zones)
+        self.ui.plate_widgets["draw_exclusion"].config(
+            command=self.toggle_exclusion_draw_mode
+        )
+        self.ui.plate_widgets["clear_exclusions"].config(
+            command=self.clear_exclusion_zones
+        )
 
     def toggle_exclusion_draw_mode(self):
         """Toggle exclusion zone drawing mode."""
@@ -42,7 +48,7 @@ class ExclusionZoneController:
             messagebox.showinfo(
                 "Planar View Required",
                 "Please enable planar alignment (press 'P') before drawing exclusion zones.",
-                parent=self.root
+                parent=self.root,
             )
             self.canvas.focus_set()
             return
@@ -53,7 +59,7 @@ class ExclusionZoneController:
             messagebox.showwarning(
                 "No Plate Selected",
                 "Please select a plate from the list before drawing exclusion zones.",
-                parent=self.root
+                parent=self.root,
             )
             self.canvas.focus_set()
             return
@@ -65,11 +71,15 @@ class ExclusionZoneController:
             plate_idx = selection[0]
             if plate_idx < len(self.plate_manager.plates):
                 self.exclusion_current_plate = self.plate_manager.plates[plate_idx]
-                self.ui.plate_widgets['draw_exclusion'].config(bg='#ff6600')  # Orange highlight
-                logger.info(f"Exclusion draw mode ENABLED for '{self.exclusion_current_plate.name}'")
+                self.ui.plate_widgets["draw_exclusion"].config(
+                    bg="#ff6600"
+                )  # Orange highlight
+                logger.info(
+                    f"Exclusion draw mode ENABLED for '{self.exclusion_current_plate.name}'"
+                )
                 logger.info("Click and drag on the plate to draw red exclusion zones")
         else:
-            self.ui.plate_widgets['draw_exclusion'].config(bg='#3a3b3f')  # Normal color
+            self.ui.plate_widgets["draw_exclusion"].config(bg="#3a3b3f")  # Normal color
             self.clear_exclusion_preview()
             self.exclusion_current_plate = None
             self.exclusion_start_point = None
@@ -85,7 +95,7 @@ class ExclusionZoneController:
             messagebox.showwarning(
                 "No Plate Selected",
                 "Please select a plate to clear exclusion zones from.",
-                parent=self.root
+                parent=self.root,
             )
             self.canvas.focus_set()
             return
@@ -101,7 +111,7 @@ class ExclusionZoneController:
             messagebox.showinfo(
                 "No Exclusion Zones",
                 f"Plate '{plate.name}' has no exclusion zones to clear.",
-                parent=self.root
+                parent=self.root,
             )
             self.canvas.focus_set()
             return
@@ -110,7 +120,7 @@ class ExclusionZoneController:
         if messagebox.askyesno(
             "Clear Exclusion Zones",
             f"Clear all {len(plate.exclusion_zones)} exclusion zone(s) from '{plate.name}'?",
-            parent=self.root
+            parent=self.root,
         ):
             # Hide the zones from display BEFORE clearing the list
             if self.planar_alignment_manager.is_aligned:
@@ -179,7 +189,11 @@ class ExclusionZoneController:
         Returns:
             True if release was handled, False otherwise
         """
-        if not self.exclusion_draw_mode or not self.exclusion_start_point or not self.exclusion_current_plate:
+        if (
+            not self.exclusion_draw_mode
+            or not self.exclusion_start_point
+            or not self.exclusion_current_plate
+        ):
             return False
 
         start_x, start_y = self.exclusion_start_point
@@ -197,16 +211,24 @@ class ExclusionZoneController:
             plate_y = y1 - self.exclusion_current_plate.y_offset
 
             # Add exclusion zone
-            zone = self.exclusion_current_plate.add_exclusion_zone(plate_x, plate_y, width, height)
-            logger.info(f"Created exclusion zone {zone.id} on '{self.exclusion_current_plate.name}': "
-                  f"({width:.1f} x {height:.1f} mm)")
+            zone = self.exclusion_current_plate.add_exclusion_zone(
+                plate_x, plate_y, width, height
+            )
+            logger.info(
+                f"Created exclusion zone {zone.id} on '{self.exclusion_current_plate.name}': "
+                f"({width:.1f} x {height:.1f} mm)"
+            )
 
             # Update display
             if self.planar_alignment_manager.is_aligned:
-                self.plate_manager.update_exclusion_zones(self.exclusion_current_plate.id, self.display)
+                self.plate_manager.update_exclusion_zones(
+                    self.exclusion_current_plate.id, self.display
+                )
                 self.display.Repaint()
         else:
-            logger.warning(f"Rectangle too small ({width:.1f} x {height:.1f} mm), minimum is 5x5mm")
+            logger.warning(
+                f"Rectangle too small ({width:.1f} x {height:.1f} mm), minimum is 5x5mm"
+            )
 
         # Clear preview and reset start point for next zone
         self.clear_exclusion_preview()
@@ -256,7 +278,9 @@ class ExclusionZoneController:
         self.exclusion_preview_shape = AIS_Shape(preview_face)
         preview_color = Quantity_Color(1.0, 0.6, 0.0, Quantity_TOC_RGB)  # Orange
         self.exclusion_preview_shape.SetColor(preview_color)
-        self.exclusion_preview_shape.SetTransparency(0.6)  # More transparent than final zones
+        self.exclusion_preview_shape.SetTransparency(
+            0.6
+        )  # More transparent than final zones
 
         material = Graphic3d_MaterialAspect(Graphic3d_NOM_PLASTIC)
         self.exclusion_preview_shape.SetMaterial(material)

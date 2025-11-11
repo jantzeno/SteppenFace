@@ -7,12 +7,23 @@ from typing import List, Tuple, Dict
 from ..managers.log_manager import logger
 from ..managers.view_helper import ViewHelper
 
+
 class FeatureController:
     """Manages feature toggles like duplicate visibility, planar alignment, and face selection."""
 
-    def __init__(self, root: tk.Tk, display, ui, parts_list: List[Tuple],
-                 deduplication_manager, explode_manager, planar_alignment_manager,
-                 plate_manager, selection_manager, tree_controller):
+    def __init__(
+        self,
+        root: tk.Tk,
+        display,
+        ui,
+        parts_list: List[Tuple],
+        deduplication_manager,
+        explode_manager,
+        planar_alignment_manager,
+        plate_manager,
+        selection_manager,
+        tree_controller,
+    ):
         self.root = root
         self.display = display
         self.ui = ui
@@ -41,7 +52,9 @@ class FeatureController:
 
             # Restore hidden selections
             if self.hidden_selections:
-                self.selection_manager.restore_hidden_selections(self.hidden_selections, self.root)
+                self.selection_manager.restore_hidden_selections(
+                    self.hidden_selections, self.root
+                )
                 self.hidden_selections = {}
 
             # Update parts tree to remove hidden indicators
@@ -51,7 +64,9 @@ class FeatureController:
             self.tree_controller.restore_tree_highlight_indicators()
         else:
             # Hide duplicate parts
-            unique_parts, duplicate_groups = self.deduplication_manager.get_unique_parts(self.parts_list)
+            unique_parts, duplicate_groups = (
+                self.deduplication_manager.get_unique_parts(self.parts_list)
+            )
 
             # Collect AIS shapes that will be hidden
             hidden_indices = self.deduplication_manager.hidden_indices
@@ -84,13 +99,13 @@ class FeatureController:
             if show_duplicates:
                 visible_parts = self.parts_list
             else:
-                visible_parts, _ = self.deduplication_manager.get_unique_parts(self.parts_list)
+                visible_parts, _ = self.deduplication_manager.get_unique_parts(
+                    self.parts_list
+                )
 
             self.explode_manager.initialize_parts(visible_parts)
             self.explode_manager.set_explosion_factor(
-                self.explode_manager.get_explosion_factor(),
-                self.display,
-                self.root
+                self.explode_manager.get_explosion_factor(), self.display, self.root
             )
 
         # Update display
@@ -112,26 +127,32 @@ class FeatureController:
                 self.display.Repaint()
                 self.root.update_idletasks()
             # Disable explode slider when planar alignment is active
-            self.ui.explode_slider.config(state='disabled')
+            self.ui.explode_slider.config(state="disabled")
         else:
             # Re-enable explode slider when disabling planar alignment
-            self.ui.explode_slider.config(state='normal')
+            self.ui.explode_slider.config(state="normal")
 
-        is_aligned = self.planar_alignment_manager.toggle_planar_alignment(self.display, self.root)
+        is_aligned = self.planar_alignment_manager.toggle_planar_alignment(
+            self.display, self.root
+        )
 
         # Update face highlight transformations to match their parent parts
         self.selection_manager.update_face_transformations()
 
         if is_aligned:
             # Associate parts with plates based on their positions
-            self.plate_manager.associate_parts_by_position(self.parts_list, self.display)
+            self.plate_manager.associate_parts_by_position(
+                self.parts_list, self.display
+            )
 
             # Update plate list UI
             self.ui.update_plate_list(self.plate_manager)
             self.view_helper.set_top_view()
 
             logger.info("Planar alignment enabled - parts laid flat")
-            logger.info(f"Parts automatically associated with {self.plate_manager.get_plate_count()} plate(s)")
+            logger.info(
+                f"Parts automatically associated with {self.plate_manager.get_plate_count()} plate(s)"
+            )
         else:
             self.view_helper.set_isometric_view()
             logger.info("Planar alignment disabled - parts restored")
@@ -140,7 +161,9 @@ class FeatureController:
         """Select the largest external face of each part."""
         # Get the visible parts list (respecting duplicate hiding)
         if not self.deduplication_manager.show_duplicates:
-            visible_parts, _ = self.deduplication_manager.get_unique_parts(self.parts_list)
+            visible_parts, _ = self.deduplication_manager.get_unique_parts(
+                self.parts_list
+            )
         else:
             visible_parts = self.parts_list
 

@@ -11,7 +11,16 @@ from ..managers.plate_arrangement_manager import PlateArrangementManager
 class PlateController:
     """Manages plate operations (add, delete, rename, arrange)."""
 
-    def __init__(self, root: tk.Tk, canvas, display, ui, plate_manager, planar_alignment_manager, selection_manager=None):
+    def __init__(
+        self,
+        root: tk.Tk,
+        canvas,
+        display,
+        ui,
+        plate_manager,
+        planar_alignment_manager,
+        selection_manager=None,
+    ):
         self.root = root
         self.canvas = canvas
         self.display = display
@@ -24,10 +33,10 @@ class PlateController:
 
     def setup_controls(self):
         """Setup plate management button callbacks."""
-        self.ui.plate_widgets['add'].config(command=self.add_plate)
-        self.ui.plate_widgets['delete'].config(command=self.delete_plate)
-        self.ui.plate_widgets['rename'].config(command=self.rename_plate)
-        self.ui.plate_widgets['arrange'].config(command=self.arrange_parts_on_plates)
+        self.ui.plate_widgets["add"].config(command=self.add_plate)
+        self.ui.plate_widgets["delete"].config(command=self.delete_plate)
+        self.ui.plate_widgets["rename"].config(command=self.rename_plate)
+        self.ui.plate_widgets["arrange"].config(command=self.arrange_parts_on_plates)
 
         # Initialize plate list display
         self.ui.update_plate_list(self.plate_manager)
@@ -39,7 +48,7 @@ class PlateController:
             "Add Plate",
             "Enter name for new plate:",
             initialvalue=f"Plate {self.plate_manager.next_plate_id}",
-            parent=self.root
+            parent=self.root,
         )
 
         if name:
@@ -61,7 +70,9 @@ class PlateController:
         # Get selected plate
         selection = self.ui.plate_listbox.curselection()
         if not selection:
-            messagebox.showwarning("No Selection", "Please select a plate to delete.", parent=self.root)
+            messagebox.showwarning(
+                "No Selection", "Please select a plate to delete.", parent=self.root
+            )
             self.canvas.focus_set()
             return
 
@@ -76,7 +87,7 @@ class PlateController:
         if messagebox.askyesno(
             "Delete Plate",
             f"Delete '{plate.name}'?\nParts will not be deleted, only disassociated.",
-            parent=self.root
+            parent=self.root,
         ):
             # Erase exclusion zones from display BEFORE removing the plate
             if self.planar_alignment_manager.is_aligned:
@@ -100,9 +111,7 @@ class PlateController:
                     self.display.Repaint()
             else:
                 messagebox.showwarning(
-                    "Cannot Delete",
-                    "Cannot delete the last plate.",
-                    parent=self.root
+                    "Cannot Delete", "Cannot delete the last plate.", parent=self.root
                 )
 
         self.canvas.focus_set()
@@ -112,7 +121,9 @@ class PlateController:
         # Get selected plate
         selection = self.ui.plate_listbox.curselection()
         if not selection:
-            messagebox.showwarning("No Selection", "Please select a plate to rename.", parent=self.root)
+            messagebox.showwarning(
+                "No Selection", "Please select a plate to rename.", parent=self.root
+            )
             self.canvas.focus_set()
             return
 
@@ -128,7 +139,7 @@ class PlateController:
             "Rename Plate",
             "Enter new name for plate:",
             initialvalue=plate.name,
-            parent=self.root
+            parent=self.root,
         )
 
         if new_name and new_name != plate.name:
@@ -156,7 +167,7 @@ class PlateController:
             messagebox.showwarning(
                 "Planar Alignment Required",
                 "Please enable planar alignment (press 'P') before arranging parts.",
-                parent=self.root
+                parent=self.root,
             )
             self.canvas.focus_set()
             return
@@ -164,9 +175,7 @@ class PlateController:
         # Check if we have parts to arrange
         if not self.parts_list:
             messagebox.showwarning(
-                "No Parts",
-                "No parts available to arrange.",
-                parent=self.root
+                "No Parts", "No parts available to arrange.", parent=self.root
             )
             self.canvas.focus_set()
             return
@@ -186,16 +195,13 @@ class PlateController:
             try:
                 logger.info("Starting automatic part arrangement...")
                 packing_results = self.arrangement_manager.arrange_parts_on_plates(
-                    self.parts_list,
-                    self.display
+                    self.parts_list, self.display
                 )
 
                 if packing_results:
                     # Apply the arrangement by transforming parts
                     self.arrangement_manager.apply_arrangement(
-                        self.parts_list,
-                        packing_results,
-                        self.display
+                        self.parts_list, packing_results, self.display
                     )
 
                     # Update selected faces to move with their parts
@@ -214,13 +220,13 @@ class PlateController:
                         "Arrangement Complete",
                         f"Successfully arranged {len(packing_results)} parts on "
                         f"{len(self.plate_manager.plates)} plate(s).",
-                        parent=self.root
+                        parent=self.root,
                     )
                 else:
                     messagebox.showwarning(
                         "Arrangement Failed",
                         "Could not arrange parts. Check part sizes and plate dimensions.",
-                        parent=self.root
+                        parent=self.root,
                     )
 
             except Exception as e:
@@ -228,7 +234,7 @@ class PlateController:
                 messagebox.showerror(
                     "Arrangement Error",
                     f"An error occurred during arrangement:\n{str(e)}",
-                    parent=self.root
+                    parent=self.root,
                 )
 
         self.canvas.focus_set()
@@ -247,7 +253,7 @@ class ArrangementSettingsDialog:
         self.dialog.title("Arrangement Settings")
         self.dialog.geometry("350x260")
         self.dialog.resizable(False, False)
-        self.dialog.configure(bg='#1a1b1f')
+        self.dialog.configure(bg="#1a1b1f")
 
         # Make dialog modal
         self.dialog.transient(parent)
@@ -255,8 +261,16 @@ class ArrangementSettingsDialog:
 
         # Center dialog
         self.dialog.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.dialog.winfo_width() // 2)
-        y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.dialog.winfo_height() // 2)
+        x = (
+            parent.winfo_x()
+            + (parent.winfo_width() // 2)
+            - (self.dialog.winfo_width() // 2)
+        )
+        y = (
+            parent.winfo_y()
+            + (parent.winfo_height() // 2)
+            - (self.dialog.winfo_height() // 2)
+        )
         self.dialog.geometry(f"+{x}+{y}")
 
         self._create_widgets()
@@ -264,16 +278,16 @@ class ArrangementSettingsDialog:
     def _create_widgets(self):
         """Create dialog widgets."""
         # Spacing setting
-        spacing_frame = tk.Frame(self.dialog, bg='#1a1b1f')
-        spacing_frame.pack(pady=10, padx=20, fill='x')
+        spacing_frame = tk.Frame(self.dialog, bg="#1a1b1f")
+        spacing_frame.pack(pady=10, padx=20, fill="x")
 
         tk.Label(
             spacing_frame,
             text="Part Spacing (mm):",
-            bg='#1a1b1f',
-            fg='white',
-            font=('Arial', 10)
-        ).pack(side='left')
+            bg="#1a1b1f",
+            fg="white",
+            font=("Arial", 10),
+        ).pack(side="left")
 
         self.spacing_var = tk.DoubleVar(value=self.spacing)
         spacing_spinbox = tk.Spinbox(
@@ -283,24 +297,24 @@ class ArrangementSettingsDialog:
             increment=1,
             textvariable=self.spacing_var,
             width=10,
-            bg='#2a2b2f',
-            fg='white',
-            buttonbackground='#3a3b3f',
-            insertbackground='white'
+            bg="#2a2b2f",
+            fg="white",
+            buttonbackground="#3a3b3f",
+            insertbackground="white",
         )
-        spacing_spinbox.pack(side='right')
+        spacing_spinbox.pack(side="right")
 
         # Margin setting
-        margin_frame = tk.Frame(self.dialog, bg='#1a1b1f')
-        margin_frame.pack(pady=10, padx=20, fill='x')
+        margin_frame = tk.Frame(self.dialog, bg="#1a1b1f")
+        margin_frame.pack(pady=10, padx=20, fill="x")
 
         tk.Label(
             margin_frame,
             text="Plate/Exclusion Margin (mm):",
-            bg='#1a1b1f',
-            fg='white',
-            font=('Arial', 10)
-        ).pack(side='left')
+            bg="#1a1b1f",
+            fg="white",
+            font=("Arial", 10),
+        ).pack(side="left")
 
         self.margin_var = tk.DoubleVar(value=self.margin)
         margin_spinbox = tk.Spinbox(
@@ -310,29 +324,29 @@ class ArrangementSettingsDialog:
             increment=1,
             textvariable=self.margin_var,
             width=10,
-            bg='#2a2b2f',
-            fg='white',
-            buttonbackground='#3a3b3f',
-            insertbackground='white'
+            bg="#2a2b2f",
+            fg="white",
+            buttonbackground="#3a3b3f",
+            insertbackground="white",
         )
-        margin_spinbox.pack(side='right')
+        margin_spinbox.pack(side="right")
 
         # Rotation setting
-        rotation_frame = tk.Frame(self.dialog, bg='#1a1b1f')
-        rotation_frame.pack(pady=10, padx=20, fill='x')
+        rotation_frame = tk.Frame(self.dialog, bg="#1a1b1f")
+        rotation_frame.pack(pady=10, padx=20, fill="x")
 
         self.rotation_var = tk.BooleanVar(value=self.allow_rotation)
         tk.Checkbutton(
             rotation_frame,
             text="Allow 90° rotation",
             variable=self.rotation_var,
-            bg='#1a1b1f',
-            fg='white',
-            selectcolor='#3a3b3f',
-            activebackground='#1a1b1f',
-            activeforeground='white',
-            font=('Arial', 10)
-        ).pack(side='left')
+            bg="#1a1b1f",
+            fg="white",
+            selectcolor="#3a3b3f",
+            activebackground="#1a1b1f",
+            activeforeground="white",
+            font=("Arial", 10),
+        ).pack(side="left")
 
         # Strategy setting (commented out - only best_fit currently available)
         # strategy_frame = tk.Frame(self.dialog, bg='#1a1b1f')
@@ -369,44 +383,44 @@ class ArrangementSettingsDialog:
         info_label = tk.Label(
             self.dialog,
             text="This will arrange all parts on plates\nusing automatic bin packing.",
-            bg='#1a1b1f',
-            fg='#888888',
-            font=('Arial', 9),
-            justify='center'
+            bg="#1a1b1f",
+            fg="#888888",
+            font=("Arial", 9),
+            justify="center",
         )
         info_label.pack(pady=15)
 
         # Buttons
-        button_frame = tk.Frame(self.dialog, bg='#1a1b1f')
+        button_frame = tk.Frame(self.dialog, bg="#1a1b1f")
         button_frame.pack(pady=10)
 
         tk.Button(
             button_frame,
             text="Arrange",
             command=self._on_ok,
-            bg='#3a7bff',
-            fg='white',
-            activebackground='#5090ff',
-            activeforeground='white',
-            font=('Arial', 10, 'bold'),
+            bg="#3a7bff",
+            fg="white",
+            activebackground="#5090ff",
+            activeforeground="white",
+            font=("Arial", 10, "bold"),
             width=12,
-            relief='flat',
-            cursor='hand2'
-        ).pack(side='left', padx=5)
+            relief="flat",
+            cursor="hand2",
+        ).pack(side="left", padx=5)
 
         tk.Button(
             button_frame,
             text="Cancel",
             command=self._on_cancel,
-            bg='#3a3b3f',
-            fg='white',
-            activebackground='#4a4b4f',
-            activeforeground='white',
-            font=('Arial', 10),
+            bg="#3a3b3f",
+            fg="white",
+            activebackground="#4a4b4f",
+            activeforeground="white",
+            font=("Arial", 10),
             width=12,
-            relief='flat',
-            cursor='hand2'
-        ).pack(side='left', padx=5)
+            relief="flat",
+            cursor="hand2",
+        ).pack(side="left", padx=5)
 
     def _on_ok(self):
         """Handle OK button click."""

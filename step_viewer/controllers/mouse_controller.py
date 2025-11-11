@@ -1,5 +1,6 @@
 from ..managers.selection_manager import SelectionManager
 
+
 class MouseController:
     """Handles main application mouse events for navigation and face selection."""
 
@@ -52,7 +53,9 @@ class MouseController:
             dx = abs(event.x - self.start_x)
             dy = abs(event.y - self.start_y)
             if dx < 5 and dy < 5:
-                self.selection_manager.select_face_at_position(event.x, event.y, self.view, self.root)
+                self.selection_manager.select_face_at_position(
+                    event.x, event.y, self.view, self.root
+                )
 
         self.button = None
 

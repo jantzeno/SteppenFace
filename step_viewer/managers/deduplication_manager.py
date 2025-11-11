@@ -68,9 +68,13 @@ class DeduplicationManager:
                 unique_parts.append((solid, color, ais_shape))
                 shape_signatures.append(signature)
 
-        logger.info(f"\nDeduplication: Found {len(unique_parts)} unique parts out of {len(parts_list)} total")
+        logger.info(
+            f"\nDeduplication: Found {len(unique_parts)} unique parts out of {len(parts_list)} total"
+        )
         if duplicate_groups:
-            logger.info(f"  {sum(len(dups) for dups in duplicate_groups.values())} duplicates hidden")
+            logger.info(
+                f"  {sum(len(dups) for dups in duplicate_groups.values())} duplicates hidden"
+            )
 
         return unique_parts, duplicate_groups
 
@@ -107,13 +111,15 @@ class DeduplicationManager:
             explorer.Next()
 
         return {
-            'volume': volume,
-            'surface_area': surface_area,
-            'face_count': face_count,
-            'edge_count': edge_count
+            "volume": volume,
+            "surface_area": surface_area,
+            "face_count": face_count,
+            "edge_count": edge_count,
         }
 
-    def _signatures_match(self, sig1: Dict, sig2: Dict, tolerance: float = 1e-6) -> bool:
+    def _signatures_match(
+        self, sig1: Dict, sig2: Dict, tolerance: float = 1e-6
+    ) -> bool:
         """
         Check if two shape signatures match within tolerance.
 
@@ -126,15 +132,17 @@ class DeduplicationManager:
             True if signatures match, False otherwise
         """
         # First check topology counts (must match exactly)
-        if sig1['face_count'] != sig2['face_count']:
+        if sig1["face_count"] != sig2["face_count"]:
             return False
-        if sig1['edge_count'] != sig2['edge_count']:
+        if sig1["edge_count"] != sig2["edge_count"]:
             return False
 
         # Check geometric properties with tolerance
-        if not self._values_close(sig1['volume'], sig2['volume'], tolerance):
+        if not self._values_close(sig1["volume"], sig2["volume"], tolerance):
             return False
-        if not self._values_close(sig1['surface_area'], sig2['surface_area'], tolerance):
+        if not self._values_close(
+            sig1["surface_area"], sig2["surface_area"], tolerance
+        ):
             return False
 
         return True

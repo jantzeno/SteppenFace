@@ -6,10 +6,13 @@ from typing import List, Tuple, Dict, Any
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
 from ..managers.log_manager import logger
 
+
 class TreeController:
     """Manages tree-based part selection and highlighting."""
 
-    def __init__(self, ui, canvas, display, parts_list: List[Tuple], deduplication_manager=None):
+    def __init__(
+        self, ui, canvas, display, parts_list: List[Tuple], deduplication_manager=None
+    ):
         self.ui = ui
         self.canvas = canvas
         self.display = display
@@ -19,6 +22,7 @@ class TreeController:
 
     def setup_tree_selection(self):
         """Setup tree selection to highlight parts with multi-select and toggle."""
+
         def on_tree_click(event):
             # Get the item that was clicked
             item = self.ui.parts_tree.identify_row(event.y)
@@ -26,11 +30,11 @@ class TreeController:
                 return
 
             # Get the tag to extract part index
-            tags = self.ui.parts_tree.item(item, 'tags')
-            if not tags or not tags[0].startswith('part_'):
+            tags = self.ui.parts_tree.item(item, "tags")
+            if not tags or not tags[0].startswith("part_"):
                 return
 
-            part_idx = int(tags[0].split('_')[1])
+            part_idx = int(tags[0].split("_")[1])
 
             # Toggle highlight for this part
             if part_idx in self.highlighted_parts:
@@ -48,7 +52,7 @@ class TreeController:
             return "break"  # Prevent default selection behavior
 
         # Bind to ButtonRelease to handle clicks
-        self.ui.parts_tree.bind('<ButtonRelease-1>', on_tree_click)
+        self.ui.parts_tree.bind("<ButtonRelease-1>", on_tree_click)
 
     def highlight_part(self, part_idx: int):
         """
@@ -83,7 +87,9 @@ class TreeController:
         # Update tree item to show highlighted state
         self.update_tree_highlight_indicator(part_idx, True)
 
-        logger.info(f"Highlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)")
+        logger.info(
+            f"Highlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)"
+        )
 
     def unhighlight_part(self, part_idx: int):
         """
@@ -108,7 +114,9 @@ class TreeController:
         # Update tree item to remove highlighted state
         self.update_tree_highlight_indicator(part_idx, False)
 
-        logger.info(f"Unhighlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)")
+        logger.info(
+            f"Unhighlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)"
+        )
 
     def clear_all_part_highlights(self):
         """Clear all part highlights."""
@@ -137,33 +145,46 @@ class TreeController:
 
         # Find the item with matching part tag
         for item in part_items:
-            tags = self.ui.parts_tree.item(item, 'tags')
-            if tags and tags[0] == f'part_{part_idx}':
+            tags = self.ui.parts_tree.item(item, "tags")
+            if tags and tags[0] == f"part_{part_idx}":
                 # Get current item text
-                current_text = self.ui.parts_tree.item(item, 'text')
+                current_text = self.ui.parts_tree.item(item, "text")
 
                 if is_highlighted:
                     # Add visual indicator (star) if not already present
-                    if not current_text.startswith('★ '):
-                        new_text = '★ ' + current_text
+                    if not current_text.startswith("★ "):
+                        new_text = "★ " + current_text
                         self.ui.parts_tree.item(item, text=new_text)
                         # Make text bold and bright yellow
-                        self.ui.parts_tree.tag_configure(f'part_{part_idx}', foreground='#ffff00', font=('Arial', 9, 'bold'))
+                        self.ui.parts_tree.tag_configure(
+                            f"part_{part_idx}",
+                            foreground="#ffff00",
+                            font=("Arial", 9, "bold"),
+                        )
                 else:
                     # Remove visual indicator
-                    if current_text.startswith('★ '):
+                    if current_text.startswith("★ "):
                         new_text = current_text[2:]  # Remove "★ "
                         self.ui.parts_tree.item(item, text=new_text)
                         # Restore original color (need to recalculate from parts_list)
                         if part_idx < len(self.parts_list):
                             _, color, _ = self.parts_list[part_idx]
                             r, g, b = color
-                            hex_color = f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+                            hex_color = (
+                                f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+                            )
                             # Check if this part is hidden as duplicate
-                            is_hidden = self.deduplication_manager and self.deduplication_manager.is_part_hidden(part_idx)
+                            is_hidden = (
+                                self.deduplication_manager
+                                and self.deduplication_manager.is_part_hidden(part_idx)
+                            )
                             if is_hidden:
-                                hex_color = '#666666'
-                            self.ui.parts_tree.tag_configure(f'part_{part_idx}', foreground=hex_color, font=('Arial', 9))
+                                hex_color = "#666666"
+                            self.ui.parts_tree.tag_configure(
+                                f"part_{part_idx}",
+                                foreground=hex_color,
+                                font=("Arial", 9),
+                            )
                 break
 
     def restore_tree_highlight_indicators(self):

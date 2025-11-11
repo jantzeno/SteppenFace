@@ -5,7 +5,10 @@ Centralized logging.
 import logging
 import sys
 
-def setup_logger(name: str = "step_viewer", level: int = logging.INFO) -> logging.Logger:
+
+def setup_logger(
+    name: str = "step_viewer", level: int = logging.INFO
+) -> logging.Logger:
     """
     Configure and return a logger instance.
 
@@ -29,8 +32,7 @@ def setup_logger(name: str = "step_viewer", level: int = logging.INFO) -> loggin
 
     # Format: [LEVEL] message
     formatter = logging.Formatter(
-        fmt='[%(levelname)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        fmt="[%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     console_handler.setFormatter(formatter)
 
@@ -57,12 +59,11 @@ def enable_file_logging(log_file: str = "step_viewer.log"):
     Args:
         log_file: Path to log file (default: "step_viewer.log")
     """
-    file_handler = logging.FileHandler(log_file, mode='a')
+    file_handler = logging.FileHandler(log_file, mode="a")
     file_handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter(
-        fmt='%(asctime)s - [%(levelname)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        fmt="%(asctime)s - [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     file_handler.setFormatter(formatter)
 

@@ -4,14 +4,14 @@ class ViewerConfig:
     # Display settings
     WINDOW_WIDTH = 1024
     WINDOW_HEIGHT = 900
-    BACKGROUND_COLOR = (17/255.0, 18/255.0, 22/255.0)
+    BACKGROUND_COLOR = (17 / 255.0, 18 / 255.0, 22 / 255.0)
     MSAA_SAMPLES = 4  # Anti-aliasing quality
 
     # Color scheme
-    DARK_BG = '#111216'
-    PANEL_BG = '#1a1b1f'
-    SEPARATOR_BG = '#2a2b2f'
-    SELECTION_MODE_BG = '#2a2520'
+    DARK_BG = "#111216"
+    PANEL_BG = "#1a1b1f"
+    SEPARATOR_BG = "#2a2b2f"
+    SELECTION_MODE_BG = "#2a2520"
 
     # Selection settings
     SELECTION_COLOR = (1.0, 0.5, 0.0)

@@ -12,8 +12,14 @@ from ..managers.selection_manager import SelectionManager
 class KeyboardController:
     """Handles all keyboard shortcuts."""
 
-    def __init__(self, display, selection_manager: SelectionManager, color_manager: ColorManager,
-                 root, config: ViewerConfig):
+    def __init__(
+        self,
+        display,
+        selection_manager: SelectionManager,
+        color_manager: ColorManager,
+        root,
+        config: ViewerConfig,
+    ):
         self.display = display
         self.selection_manager = selection_manager
         self.color_manager = color_manager
@@ -60,7 +66,7 @@ class KeyboardController:
 
             self.root.configure(bg=self.config.SELECTION_MODE_BG)
             if self.mode_label:
-                self.mode_label.config(text="Mode: Selection", fg='#00ff00')
+                self.mode_label.config(text="Mode: Selection", fg="#00ff00")
         else:
             logger.info("\n*** NAVIGATION MODE ***")
             logger.info("  - Left click: Rotate")
@@ -70,7 +76,7 @@ class KeyboardController:
 
             self.root.configure(bg=self.config.DARK_BG)
             if self.mode_label:
-                self.mode_label.config(text="Mode: Navigation", fg='#00e0ff')
+                self.mode_label.config(text="Mode: Navigation", fg="#00e0ff")
 
     def on_key_c(self, event):
         """Clear all selections."""

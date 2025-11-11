@@ -28,9 +28,13 @@ class SelectionManager:
         self.config = config
         self.is_selection_mode = False
         self.highlighted_faces: Dict[int, AIS_Shape] = {}
-        self.face_parent_map: Dict[int, AIS_Shape] = {}  # Maps face hash to parent AIS_Shape
+        self.face_parent_map: Dict[int, AIS_Shape] = (
+            {}
+        )  # Maps face hash to parent AIS_Shape
         self.face_to_part_map: Dict[int, int] = {}  # Maps face hash to part index
-        self.part_selected_faces: Dict[int, any] = {}  # Maps part index to selected face object
+        self.part_selected_faces: Dict[int, any] = (
+            {}
+        )  # Maps part index to selected face object
         self.selection_label = None
         self.planar_alignment_manager = None  # Reference to planar alignment manager
 
@@ -48,7 +52,9 @@ class SelectionManager:
             if face_hash in self.face_parent_map:
                 parent_ais_shape = self.face_parent_map[face_hash]
                 if parent_ais_shape.HasTransformation():
-                    ais_highlight.SetLocalTransformation(parent_ais_shape.LocalTransformation())
+                    ais_highlight.SetLocalTransformation(
+                        parent_ais_shape.LocalTransformation()
+                    )
                 else:
                     # Parent has no transformation, clear the face highlight transformation too
                     ais_highlight.SetLocalTransformation(gp_Trsf())
@@ -110,13 +116,21 @@ class SelectionManager:
                         # Store the parent for later transformation updates
                         self.face_parent_map[face_hash] = parent_ais
                         if parent_ais.HasTransformation():
-                            ais_highlight.SetLocalTransformation(parent_ais.LocalTransformation())
+                            ais_highlight.SetLocalTransformation(
+                                parent_ais.LocalTransformation()
+                            )
 
                 drawer = ais_highlight.Attributes()
                 drawer.SetFaceBoundaryDraw(True)
-                drawer.FaceBoundaryAspect().SetColor(self.color_manager.get_outline_quantity_color())
-                drawer.FaceBoundaryAspect().SetWidth(self.config.SELECTION_OUTLINE_WIDTH)
-                drawer.FaceBoundaryAspect().SetTypeOfLine(Aspect_TypeOfLine.Aspect_TOL_SOLID)
+                drawer.FaceBoundaryAspect().SetColor(
+                    self.color_manager.get_outline_quantity_color()
+                )
+                drawer.FaceBoundaryAspect().SetWidth(
+                    self.config.SELECTION_OUTLINE_WIDTH
+                )
+                drawer.FaceBoundaryAspect().SetTypeOfLine(
+                    Aspect_TypeOfLine.Aspect_TOL_SOLID
+                )
 
                 self.display.Context.Display(ais_highlight, True)
                 self.highlighted_faces[face_hash] = ais_highlight
@@ -129,7 +143,9 @@ class SelectionManager:
 
             count = len(self.highlighted_faces)
             if self.selection_label:
-                self.selection_label.config(text=f"Selected: {count} face{'s' if count != 1 else ''}")
+                self.selection_label.config(
+                    text=f"Selected: {count} face{'s' if count != 1 else ''}"
+                )
 
             logger.info(f"{action} face (total: {count})")
             return True
@@ -176,7 +192,9 @@ class SelectionManager:
             drawer.SetFaceBoundaryDraw(True)
             drawer.FaceBoundaryAspect().SetColor(outline_color)
             drawer.FaceBoundaryAspect().SetWidth(self.config.SELECTION_OUTLINE_WIDTH)
-            drawer.FaceBoundaryAspect().SetTypeOfLine(Aspect_TypeOfLine.Aspect_TOL_SOLID)
+            drawer.FaceBoundaryAspect().SetTypeOfLine(
+                Aspect_TypeOfLine.Aspect_TOL_SOLID
+            )
 
             self.display.Context.Redisplay(ais_highlight, True)
 
@@ -201,10 +219,14 @@ class SelectionManager:
             if face_hash in self.face_parent_map:
                 parent_ais = self.face_parent_map[face_hash]
                 if parent_ais.HasTransformation():
-                    ais_highlight.SetLocalTransformation(parent_ais.LocalTransformation())
+                    ais_highlight.SetLocalTransformation(
+                        parent_ais.LocalTransformation()
+                    )
                 else:
                     # Clear transformation if parent has none
-                    ais_highlight.SetLocalTransformation(parent_ais.LocalTransformation())
+                    ais_highlight.SetLocalTransformation(
+                        parent_ais.LocalTransformation()
+                    )
                 self.display.Context.Redisplay(ais_highlight, True)
 
         self.display.Context.UpdateCurrentViewer()
@@ -226,8 +248,8 @@ class SelectionManager:
                 if parent_ais in ais_shapes_to_hide:
                     # Store for later restoration
                     hidden_selections[face_hash] = {
-                        'ais_highlight': ais_highlight,
-                        'parent_ais': parent_ais
+                        "ais_highlight": ais_highlight,
+                        "parent_ais": parent_ais,
                     }
                     # Hide the selection
                     self.display.Context.Remove(ais_highlight, False)
@@ -240,7 +262,9 @@ class SelectionManager:
         # Update selection count label
         count = len(self.highlighted_faces)
         if self.selection_label:
-            self.selection_label.config(text=f"Selected: {count} face{'s' if count != 1 else ''}")
+            self.selection_label.config(
+                text=f"Selected: {count} face{'s' if count != 1 else ''}"
+            )
 
         self.display.Context.UpdateCurrentViewer()
         self.display.Repaint()
@@ -251,7 +275,7 @@ class SelectionManager:
     def restore_hidden_selections(self, hidden_selections, root):
         """Restore previously hidden selections when parts become visible again."""
         for face_hash, selection_data in hidden_selections.items():
-            ais_highlight = selection_data['ais_highlight']
+            ais_highlight = selection_data["ais_highlight"]
             # Restore the selection
             self.display.Context.Display(ais_highlight, False)
             self.highlighted_faces[face_hash] = ais_highlight
@@ -259,7 +283,9 @@ class SelectionManager:
         # Update selection count label
         count = len(self.highlighted_faces)
         if self.selection_label:
-            self.selection_label.config(text=f"Selected: {count} face{'s' if count != 1 else ''}")
+            self.selection_label.config(
+                text=f"Selected: {count} face{'s' if count != 1 else ''}"
+            )
 
         self.display.Context.UpdateCurrentViewer()
         self.display.Repaint()
@@ -277,7 +303,9 @@ class SelectionManager:
             root: Tkinter root for UI updates
         """
         if not self.is_selection_mode:
-            logger.warning("Not in selection mode. Press 's' to enter selection mode first.")
+            logger.warning(
+                "Not in selection mode. Press 's' to enter selection mode first."
+            )
             return
 
         # Clear existing selections first
@@ -311,7 +339,9 @@ class SelectionManager:
                 continue
 
             # Debug info
-            logger.debug(f"  Part {idx+1}: {len(face_areas)} faces, top 2 by area: {[f'{a:.2f}' for a, _ in face_areas[:2]]}")
+            logger.debug(
+                f"  Part {idx+1}: {len(face_areas)} faces, top 2 by area: {[f'{a:.2f}' for a, _ in face_areas[:2]]}"
+            )
 
             # Check the two largest faces to determine which is external
             selected_face = None
@@ -328,7 +358,9 @@ class SelectionManager:
 
             for face_idx, (area, face) in enumerate(face_areas[:2]):
                 # Check if this face is external relative to the entire assembly
-                is_external, debug_info, clear_count = self._is_face_external_to_assembly(face, all_solids)
+                is_external, debug_info, clear_count = (
+                    self._is_face_external_to_assembly(face, all_solids)
+                )
 
                 if is_external:
                     # Calculate outward score: how well does the face point away from origin?
@@ -338,8 +370,12 @@ class SelectionManager:
 
                     # Get face normal
                     surface = BRepAdaptor_Surface(face)
-                    u_min, u_max, v_min, v_max = surface.FirstUParameter(), surface.LastUParameter(), \
-                                                  surface.FirstVParameter(), surface.LastVParameter()
+                    u_min, u_max, v_min, v_max = (
+                        surface.FirstUParameter(),
+                        surface.LastUParameter(),
+                        surface.FirstVParameter(),
+                        surface.LastVParameter(),
+                    )
                     u_mid = (u_min + u_max) / 2.0
                     v_mid = (v_min + v_max) / 2.0
 
@@ -358,28 +394,56 @@ class SelectionManager:
                             to_face.Normalize()
                             # Positive dot product means normal points away from origin (outward)
                             # Use max of normal and -normal to handle arbitrary normal direction
-                            outward_score = max(normal.Dot(to_face), -normal.Dot(to_face))
+                            outward_score = max(
+                                normal.Dot(to_face), -normal.Dot(to_face)
+                            )
 
                     # Composite score: clearness (2 or 1) * 1000 + outward_score (0-1) * 100
                     # This prioritizes clearness first, then outward direction as tiebreaker
                     composite_score = clear_count * 1000 + outward_score * 100
 
-                    face_candidates.append((face, area, clear_count, outward_score, composite_score, face_idx, debug_info))
-                    logger.debug(f"    Face #{face_idx+1}: area={area:.2f} clearness={clear_count} outward={outward_score:.2f} score={composite_score:.1f} {debug_info}")
+                    face_candidates.append(
+                        (
+                            face,
+                            area,
+                            clear_count,
+                            outward_score,
+                            composite_score,
+                            face_idx,
+                            debug_info,
+                        )
+                    )
+                    logger.debug(
+                        f"    Face #{face_idx+1}: area={area:.2f} clearness={clear_count} outward={outward_score:.2f} score={composite_score:.1f} {debug_info}"
+                    )
                 else:
-                    logger.debug(f"    ✗ Skipped face #{face_idx+1}: area={area:.2f} (internal) {debug_info}")
+                    logger.debug(
+                        f"    ✗ Skipped face #{face_idx+1}: area={area:.2f} (internal) {debug_info}"
+                    )
 
             # Select the face with best composite score
             if face_candidates:
                 # Sort by composite score (highest first)
                 face_candidates.sort(key=lambda x: x[4], reverse=True)
-                selected_face, selected_area, clearness, outward, score, selected_idx, selected_debug = face_candidates[0]
-                logger.debug(f"    ✓ Selected face #{selected_idx+1}: area={selected_area:.2f} clearness={clearness} outward={outward:.2f} {selected_debug}")
+                (
+                    selected_face,
+                    selected_area,
+                    clearness,
+                    outward,
+                    score,
+                    selected_idx,
+                    selected_debug,
+                ) = face_candidates[0]
+                logger.debug(
+                    f"    ✓ Selected face #{selected_idx+1}: area={selected_area:.2f} clearness={clearness} outward={outward:.2f} {selected_debug}"
+                )
 
             # If neither of the two largest faces is external, fall back to largest
             if selected_face is None and face_areas:
                 selected_area, selected_face = face_areas[0]
-                logger.debug(f"    Fallback: selected largest face area={selected_area:.2f}")
+                logger.debug(
+                    f"    Fallback: selected largest face area={selected_area:.2f}"
+                )
 
             # Add the selected face to highlights
             if selected_face is not None:
@@ -394,7 +458,9 @@ class SelectionManager:
 
                     # Copy transformation from parent if it has one
                     if ais_shape.HasTransformation():
-                        ais_highlight.SetLocalTransformation(ais_shape.LocalTransformation())
+                        ais_highlight.SetLocalTransformation(
+                            ais_shape.LocalTransformation()
+                        )
 
                     # Store the parent for transformation updates
                     self.face_parent_map[face_hash] = ais_shape
@@ -406,9 +472,15 @@ class SelectionManager:
                     # Apply outline
                     drawer = ais_highlight.Attributes()
                     drawer.SetFaceBoundaryDraw(True)
-                    drawer.FaceBoundaryAspect().SetColor(self.color_manager.get_outline_quantity_color())
-                    drawer.FaceBoundaryAspect().SetWidth(self.config.SELECTION_OUTLINE_WIDTH)
-                    drawer.FaceBoundaryAspect().SetTypeOfLine(Aspect_TypeOfLine.Aspect_TOL_SOLID)
+                    drawer.FaceBoundaryAspect().SetColor(
+                        self.color_manager.get_outline_quantity_color()
+                    )
+                    drawer.FaceBoundaryAspect().SetWidth(
+                        self.config.SELECTION_OUTLINE_WIDTH
+                    )
+                    drawer.FaceBoundaryAspect().SetTypeOfLine(
+                        Aspect_TypeOfLine.Aspect_TOL_SOLID
+                    )
 
                     self.display.Context.Display(ais_highlight, True)
                     self.highlighted_faces[face_hash] = ais_highlight
@@ -423,7 +495,9 @@ class SelectionManager:
         # Update selection count label
         count = len(self.highlighted_faces)
         if self.selection_label:
-            self.selection_label.config(text=f"Selected: {count} face{'s' if count != 1 else ''}")
+            self.selection_label.config(
+                text=f"Selected: {count} face{'s' if count != 1 else ''}"
+            )
 
         # Update planar alignment manager with selected faces
         if self.planar_alignment_manager:
@@ -479,8 +553,12 @@ class SelectionManager:
 
             # Get face normal at center
             surface = BRepAdaptor_Surface(face)
-            u_min, u_max, v_min, v_max = surface.FirstUParameter(), surface.LastUParameter(), \
-                                          surface.FirstVParameter(), surface.LastVParameter()
+            u_min, u_max, v_min, v_max = (
+                surface.FirstUParameter(),
+                surface.LastUParameter(),
+                surface.FirstVParameter(),
+                surface.LastVParameter(),
+            )
             u_mid = (u_min + u_max) / 2.0
             v_mid = (v_min + v_max) / 2.0
 
@@ -509,7 +587,7 @@ class SelectionManager:
                 ray_dir = gp_Dir(
                     normal.X() * direction_multiplier,
                     normal.Y() * direction_multiplier,
-                    normal.Z() * direction_multiplier
+                    normal.Z() * direction_multiplier,
                 )
                 ray = gp_Lin(gp_Ax1(face_center, ray_dir))
 

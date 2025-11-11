@@ -5,9 +5,26 @@ from OCC.Core.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Lin
 from OCC.Core.IntAna import IntAna_IntConicQuad
 
 from ..config import ViewerConfig
-from . import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager, PlateManager, EventManager, UIManager, CanvasManager
+from . import (
+    ColorManager,
+    SelectionManager,
+    ExplodeManager,
+    DeduplicationManager,
+    PlanarAlignmentManager,
+    PlateManager,
+    EventManager,
+    UIManager,
+    CanvasManager,
+)
 from .log_manager import logger
-from ..controllers import MouseController, KeyboardController, TreeController, ExclusionZoneController, PlateController, FeatureController
+from ..controllers import (
+    MouseController,
+    KeyboardController,
+    TreeController,
+    ExclusionZoneController,
+    PlateController,
+    FeatureController,
+)
 from ..loaders import StepLoader
 
 
@@ -87,71 +104,107 @@ class ApplicationManager:
         """Setup all core controllers and managers."""
         # Initialize managers
         self.color_manager = ColorManager(self.config)
-        self.selection_manager = SelectionManager(self.display, self.color_manager, self.config)
+        self.selection_manager = SelectionManager(
+            self.display, self.color_manager, self.config
+        )
         self.selection_manager.set_selection_label(self.ui.selection_label)
         self.explode_manager = ExplodeManager()
-        self.explode_manager.selection_manager = self.selection_manager  # Link for transformation updates
+        self.explode_manager.selection_manager = (
+            self.selection_manager
+        )  # Link for transformation updates
         self.deduplication_manager = DeduplicationManager()
         self.plate_manager = PlateManager(
-            self.config.SHEET_WIDTH_MM,
-            self.config.SHEET_HEIGHT_MM
+            self.config.SHEET_WIDTH_MM, self.config.SHEET_HEIGHT_MM
         )
         self.planar_alignment_manager = PlanarAlignmentManager(self.plate_manager)
-        self.selection_manager.set_planar_alignment_manager(self.planar_alignment_manager)
+        self.selection_manager.set_planar_alignment_manager(
+            self.planar_alignment_manager
+        )
 
         # Initialize controllers
         self.mouse_controller = MouseController(
             self.view, self.display, self.selection_manager, self.root
         )
         self.keyboard_controller = KeyboardController(
-            self.display, self.selection_manager, self.color_manager, self.root, self.config
+            self.display,
+            self.selection_manager,
+            self.color_manager,
+            self.root,
+            self.config,
         )
-        self.keyboard_controller.set_ui_labels(self.ui.mode_label, self.ui.selection_label)
+        self.keyboard_controller.set_ui_labels(
+            self.ui.mode_label, self.ui.selection_label
+        )
 
     def _setup_ui_controllers(self):
         """Setup UI-specific controllers."""
         # Tree controller for part highlighting
         self.tree_controller = TreeController(
-            self.ui, self.canvas, self.display, self.parts_list, self.deduplication_manager
+            self.ui,
+            self.canvas,
+            self.display,
+            self.parts_list,
+            self.deduplication_manager,
         )
         self.tree_controller.setup_tree_selection()
 
         # Feature controller for toggles
         self.feature_controller = FeatureController(
-            self.root, self.display, self.ui, self.parts_list,
-            self.deduplication_manager, self.explode_manager, self.planar_alignment_manager,
-            self.plate_manager, self.selection_manager, self.tree_controller
+            self.root,
+            self.display,
+            self.ui,
+            self.parts_list,
+            self.deduplication_manager,
+            self.explode_manager,
+            self.planar_alignment_manager,
+            self.plate_manager,
+            self.selection_manager,
+            self.tree_controller,
         )
 
         # Plate controller
         self.plate_controller = PlateController(
-            self.root, self.canvas, self.display, self.ui,
-            self.plate_manager, self.planar_alignment_manager,
-            self.selection_manager
+            self.root,
+            self.canvas,
+            self.display,
+            self.ui,
+            self.plate_manager,
+            self.planar_alignment_manager,
+            self.selection_manager,
         )
         self.plate_controller.set_parts_list(self.parts_list)
         self.plate_controller.setup_controls()
 
         # Exclusion zone controller
         self.exclusion_zone_controller = ExclusionZoneController(
-            self.root, self.canvas, self.display, self.ui,
-            self.plate_manager, self.planar_alignment_manager
+            self.root,
+            self.canvas,
+            self.display,
+            self.ui,
+            self.plate_manager,
+            self.planar_alignment_manager,
         )
         self.exclusion_zone_controller.setup_controls()
 
     def _bind_events(self):
         """Bind mouse and keyboard events."""
         self.event_manager = EventManager(
-            self.root, self.canvas, self.mouse_controller, self.keyboard_controller,
-            self.exclusion_zone_controller, self._get_world_coordinates
+            self.root,
+            self.canvas,
+            self.mouse_controller,
+            self.keyboard_controller,
+            self.exclusion_zone_controller,
+            self._get_world_coordinates,
         )
         self.event_manager.bind_events(
             self.feature_controller.toggle_duplicate_visibility,
             self.feature_controller.toggle_planar_alignment,
-            self.feature_controller.select_largest_faces
+            self.feature_controller.select_largest_faces,
         )
 
-    def _get_world_coordinates(self, screen_x: int, screen_y: int) -> Tuple[float, float, float]:
+    def _get_world_coordinates(
+        self, screen_x: int, screen_y: int
+    ) -> Tuple[float, float, float]:
         """
         Convert screen coordinates to 3D world coordinates on the Z=0 plane.
         Uses ray casting to find intersection with the Z=0 plane.
@@ -207,6 +260,7 @@ class ApplicationManager:
 
     def _setup_explode_slider(self):
         """Setup the explode slider callback."""
+
         def on_slider_change(value):
             factor = float(value)
             self.explode_manager.set_explosion_factor(factor, self.display, self.root)
@@ -226,10 +280,24 @@ class ApplicationManager:
         """Setup view preset button callbacks."""
         view_controller = self.keyboard_controller.view_helper
 
-        self.ui.view_buttons['front'].config(command=lambda: view_controller.set_front_view())
-        self.ui.view_buttons['back'].config(command=lambda: view_controller.set_back_view())
-        self.ui.view_buttons['right'].config(command=lambda: view_controller.set_right_view())
-        self.ui.view_buttons['left'].config(command=lambda: view_controller.set_left_view())
-        self.ui.view_buttons['top'].config(command=lambda: view_controller.set_top_view())
-        self.ui.view_buttons['bottom'].config(command=lambda: view_controller.set_bottom_view())
-        self.ui.view_buttons['isometric'].config(command=lambda: view_controller.set_isometric_view())
+        self.ui.view_buttons["front"].config(
+            command=lambda: view_controller.set_front_view()
+        )
+        self.ui.view_buttons["back"].config(
+            command=lambda: view_controller.set_back_view()
+        )
+        self.ui.view_buttons["right"].config(
+            command=lambda: view_controller.set_right_view()
+        )
+        self.ui.view_buttons["left"].config(
+            command=lambda: view_controller.set_left_view()
+        )
+        self.ui.view_buttons["top"].config(
+            command=lambda: view_controller.set_top_view()
+        )
+        self.ui.view_buttons["bottom"].config(
+            command=lambda: view_controller.set_bottom_view()
+        )
+        self.ui.view_buttons["isometric"].config(
+            command=lambda: view_controller.set_isometric_view()
+        )

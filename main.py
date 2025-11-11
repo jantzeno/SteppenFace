@@ -5,7 +5,8 @@ try:
     from OCC.Core.STEPControl import STEPControl_Reader
 except ImportError:
     import logging
-    logging.basicConfig(level=logging.ERROR, format='[%(levelname)s] %(message)s')
+
+    logging.basicConfig(level=logging.ERROR, format="[%(levelname)s] %(message)s")
     logging.error("pythonocc-core is not installed.")
     logging.error("Install it using: conda install -c conda-forge pythonocc-core")
     sys.exit(1)
@@ -24,7 +25,7 @@ def main():
         sys.exit(1)
 
     """Print viewer controls to console."""
-    logger.info("\n" + "="*60)
+    logger.info("\n" + "=" * 60)
     logger.info("\nViewer Controls:")
     logger.info("  - Left mouse button: Rotate")
     logger.info("  - Right mouse button: Pan")

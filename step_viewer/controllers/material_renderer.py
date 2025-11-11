@@ -11,7 +11,9 @@ class MaterialRenderer:
     """Handles material application to CAD shapes."""
 
     @staticmethod
-    def apply_matte_material(ais_shape, color: Quantity_Color, edge_color: Optional[Quantity_Color] = None):
+    def apply_matte_material(
+        ais_shape, color: Quantity_Color, edge_color: Optional[Quantity_Color] = None
+    ):
         """
         Apply a matte plastic material with edge coloring.
 
@@ -20,7 +22,9 @@ class MaterialRenderer:
             color: Quantity_Color for the shape
             edge_color: Optional edge color (defaults to dark gray)
         """
-        material = Graphic3d_MaterialAspect(Graphic3d_NameOfMaterial.Graphic3d_NOM_PLASTIC)
+        material = Graphic3d_MaterialAspect(
+            Graphic3d_NameOfMaterial.Graphic3d_NOM_PLASTIC
+        )
         material.SetAmbientColor(color)
         material.SetDiffuseColor(color)
         dark_color = Quantity_Color(0.05, 0.05, 0.05, Quantity_TOC_RGB)

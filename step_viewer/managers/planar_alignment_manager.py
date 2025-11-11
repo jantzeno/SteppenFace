@@ -27,7 +27,9 @@ class PlanarAlignmentManager:
         self.parts_data = []
         self.is_aligned = False
         self.original_transformations = []  # Store original transforms for reset
-        self.selected_faces_per_part = {}  # Maps part index to selected face for orientation
+        self.selected_faces_per_part = (
+            {}
+        )  # Maps part index to selected face for orientation
         self.plate_manager = plate_manager  # Reference to plate manager
 
     def initialize_parts(self, parts_list: List):
@@ -39,11 +41,9 @@ class PlanarAlignmentManager:
         """
         self.parts_data = []
         for solid, color, ais_shape in parts_list:
-            self.parts_data.append({
-                'solid': solid,
-                'color': color,
-                'ais_shape': ais_shape
-            })
+            self.parts_data.append(
+                {"solid": solid, "color": color, "ais_shape": ais_shape}
+            )
 
     def set_selected_faces(self, selected_faces_map: dict):
         """
@@ -82,8 +82,8 @@ class PlanarAlignmentManager:
         part_transforms = []
 
         for part_idx, part_data in enumerate(self.parts_data):
-            solid = part_data['solid']
-            ais_shape = part_data['ais_shape']
+            solid = part_data["solid"]
+            ais_shape = part_data["ais_shape"]
 
             # Store original transformation
             if ais_shape.HasTransformation():
@@ -119,16 +119,22 @@ class PlanarAlignmentManager:
 
                 # Only rotate if not already aligned
                 if abs(normal_dir.Z() - 1.0) > 0.001:
-                    rotation_axis = gp_Vec(normal_dir.XYZ()).Crossed(gp_Vec(z_axis.XYZ()))
+                    rotation_axis = gp_Vec(normal_dir.XYZ()).Crossed(
+                        gp_Vec(z_axis.XYZ())
+                    )
                     if rotation_axis.Magnitude() > 0.001:
                         rotation_axis.Normalize()
-                        axis = gp_Ax1(gp_Pnt(center[0], center[1], center[2]),
-                                     gp_Dir(rotation_axis.XYZ()))
+                        axis = gp_Ax1(
+                            gp_Pnt(center[0], center[1], center[2]),
+                            gp_Dir(rotation_axis.XYZ()),
+                        )
                         angle = np.arccos(np.clip(normal_dir.Dot(z_axis), -1.0, 1.0))
                         rotation_trsf.SetRotation(axis, angle)
 
                 # Calculate bounding box after rotation
-                transformed_shape = BRepBuilderAPI_Transform(solid, rotation_trsf, False).Shape()
+                transformed_shape = BRepBuilderAPI_Transform(
+                    solid, rotation_trsf, False
+                ).Shape()
                 bbox = Bnd_Box()
                 brepbndlib.Add(transformed_shape, bbox)
                 xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
@@ -147,34 +153,42 @@ class PlanarAlignmentManager:
                 if is_on_bottom:
                     # Rotate 180° around X axis at the part center to flip top/bottom
                     flip_trsf = gp_Trsf()
-                    flip_center = gp_Pnt((xmin + xmax) / 2, (ymin + ymax) / 2, part_center_z)
+                    flip_center = gp_Pnt(
+                        (xmin + xmax) / 2, (ymin + ymax) / 2, part_center_z
+                    )
                     flip_trsf.SetRotation(gp_Ax1(flip_center, gp_Dir(1, 0, 0)), np.pi)
                     rotation_trsf = flip_trsf.Multiplied(rotation_trsf)
 
                     # Recalculate bounding box after flip
-                    transformed_shape = BRepBuilderAPI_Transform(solid, rotation_trsf, False).Shape()
+                    transformed_shape = BRepBuilderAPI_Transform(
+                        solid, rotation_trsf, False
+                    ).Shape()
                     bbox = Bnd_Box()
                     brepbndlib.Add(transformed_shape, bbox)
                     xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
 
-                part_transforms.append({
-                    'rotation_trsf': rotation_trsf,
-                    'bbox': (xmin, ymin, zmin, xmax, ymax, zmax),
-                    'width': xmax - xmin,
-                    'height': ymax - ymin,
-                    'depth': zmax - zmin,
-                    'ais_shape': ais_shape
-                })
+                part_transforms.append(
+                    {
+                        "rotation_trsf": rotation_trsf,
+                        "bbox": (xmin, ymin, zmin, xmax, ymax, zmax),
+                        "width": xmax - xmin,
+                        "height": ymax - ymin,
+                        "depth": zmax - zmin,
+                        "ais_shape": ais_shape,
+                    }
+                )
             else:
                 # No planar face found, store identity transform
-                part_transforms.append({
-                    'rotation_trsf': gp_Trsf(),
-                    'bbox': (0, 0, 0, 0, 0, 0),
-                    'width': 0,
-                    'height': 0,
-                    'depth': 0,
-                    'ais_shape': ais_shape
-                })
+                part_transforms.append(
+                    {
+                        "rotation_trsf": gp_Trsf(),
+                        "bbox": (0, 0, 0, 0, 0, 0),
+                        "width": 0,
+                        "height": 0,
+                        "depth": 0,
+                        "ais_shape": ais_shape,
+                    }
+                )
 
         # Second pass: arrange parts in a grid layout
         grid_cols = math.ceil(math.sqrt(len(part_transforms)))
@@ -191,8 +205,8 @@ class PlanarAlignmentManager:
             if row >= len(row_heights):
                 row_heights.append(0)
 
-            row_heights[row] = max(row_heights[row], pt['height'])
-            col_widths[col] = max(col_widths[col], pt['width'])
+            row_heights[row] = max(row_heights[row], pt["height"])
+            col_widths[col] = max(col_widths[col], pt["width"])
 
         # Add spacing between parts (10% of average size)
         avg_width = sum(col_widths) / len(col_widths) if col_widths else 10
@@ -208,23 +222,21 @@ class PlanarAlignmentManager:
             y_offset = sum(row_heights[:row]) + spacing * row
 
             # Get bbox info
-            xmin, ymin, zmin, xmax, ymax, zmax = pt['bbox']
+            xmin, ymin, zmin, xmax, ymax, zmax = pt["bbox"]
 
             # Create translation to move part to grid position and Z=0
             translation_trsf = gp_Trsf()
-            translation_trsf.SetTranslation(gp_Vec(
-                x_offset - xmin,
-                y_offset - ymin,
-                -zmin  # Move to Z=0
-            ))
+            translation_trsf.SetTranslation(
+                gp_Vec(x_offset - xmin, y_offset - ymin, -zmin)  # Move to Z=0
+            )
 
             # Combine transformations: translation * rotation (apply rotation first, then translation)
             final_trsf = translation_trsf
-            final_trsf.Multiply(pt['rotation_trsf'])
+            final_trsf.Multiply(pt["rotation_trsf"])
 
             # Apply transformation
-            pt['ais_shape'].SetLocalTransformation(final_trsf)
-            display.Context.Redisplay(pt['ais_shape'], True)
+            pt["ais_shape"].SetLocalTransformation(final_trsf)
+            display.Context.Redisplay(pt["ais_shape"], True)
 
         # Show plates
         if self.plate_manager:
@@ -240,7 +252,7 @@ class PlanarAlignmentManager:
     def _reset_alignment(self, display, root):
         """Reset parts to their original orientations."""
         for i, part_data in enumerate(self.parts_data):
-            ais_shape = part_data['ais_shape']
+            ais_shape = part_data["ais_shape"]
 
             if i < len(self.original_transformations):
                 original_trsf = self.original_transformations[i]
@@ -283,8 +295,12 @@ class PlanarAlignmentManager:
 
             # Get face normal at center
             surface = BRepAdaptor_Surface(face)
-            u_min, u_max, v_min, v_max = surface.FirstUParameter(), surface.LastUParameter(), \
-                                          surface.FirstVParameter(), surface.LastVParameter()
+            u_min, u_max, v_min, v_max = (
+                surface.FirstUParameter(),
+                surface.LastUParameter(),
+                surface.FirstVParameter(),
+                surface.LastVParameter(),
+            )
             u_mid = (u_min + u_max) / 2.0
             v_mid = (v_min + v_max) / 2.0
 

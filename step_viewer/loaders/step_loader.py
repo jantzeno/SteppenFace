@@ -42,10 +42,20 @@ class StepLoader:
 
         # Report entities
         explorer_solid = TopExp_Explorer(shape, TopAbs_SOLID)
-        solid_count = sum(1 for _ in iter(lambda: explorer_solid.More() and not explorer_solid.Next(), False))
+        solid_count = sum(
+            1
+            for _ in iter(
+                lambda: explorer_solid.More() and not explorer_solid.Next(), False
+            )
+        )
 
         explorer_face = TopExp_Explorer(shape, TopAbs_FACE)
-        face_count = sum(1 for _ in iter(lambda: explorer_face.More() and not explorer_face.Next(), False))
+        face_count = sum(
+            1
+            for _ in iter(
+                lambda: explorer_face.More() and not explorer_face.Next(), False
+            )
+        )
 
         logger.info(f"  Solids: {solid_count}")
         logger.info(f"  Faces: {face_count}")

@@ -6,6 +6,7 @@ from typing import Tuple
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
 from ..config import ViewerConfig
 
+
 class ColorManager:
     """Manages selection colors and color cycling."""
 
@@ -24,12 +25,16 @@ class ColorManager:
 
     def cycle_fill_color(self) -> Tuple[Tuple[float, float, float], str]:
         """Cycle to next fill color preset."""
-        self.fill_index = (self.fill_index + 1) % len(self.config.SELECTION_COLOR_PRESETS)
+        self.fill_index = (self.fill_index + 1) % len(
+            self.config.SELECTION_COLOR_PRESETS
+        )
         return self.get_current_fill_color()
 
     def cycle_outline_color(self) -> Tuple[Tuple[float, float, float], str]:
         """Cycle to next outline color preset."""
-        self.outline_index = (self.outline_index + 1) % len(self.config.OUTLINE_COLOR_PRESETS)
+        self.outline_index = (self.outline_index + 1) % len(
+            self.config.OUTLINE_COLOR_PRESETS
+        )
         return self.get_current_outline_color()
 
     def get_fill_quantity_color(self) -> Quantity_Color:
