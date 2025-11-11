@@ -11,11 +11,11 @@ from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine, Aspect_TOTP_RIGHT
 
 from ..config import ViewerConfig
 from ..loaders import StepLoader
-from .material_renderer import MaterialRenderer
-from ..managers.log_manager import logger
+from ..controllers.material_renderer import MaterialRenderer
+from .log_manager import logger
 
 
-class DisplayManager:
+class CanvasManager:
     """Manages 3D display initialization, configuration, and model rendering."""
 
     def __init__(self, root: tk.Tk, config: ViewerConfig):
@@ -23,7 +23,6 @@ class DisplayManager:
         self.config = config
         self.display = None
         self.canvas = None
-        self.view = None
         self.resize_state = {'pending': False, 'initialized': False}
 
     def init_display(self, parent) -> Any:
@@ -45,7 +44,6 @@ class DisplayManager:
 
         self.root.update_idletasks()
         self.display = self.canvas._display
-        self.view = self.display.View
 
         return self.display
 
@@ -116,6 +114,9 @@ class DisplayManager:
         render_params.IsAntialiasingEnabled = True
         render_params.NbMsaaSamples = self.config.MSAA_SAMPLES
 
+        # xyz widget
+        self.display.View.TriedronDisplay(Aspect_TOTP_RIGHT_LOWER, Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB), 0.1, True)
+        
         # Selection highlighting
         logger.info(f"\nApplying selection colors:")
         logger.info(f"  Fill: RGB{self.config.SELECTION_COLOR}")
@@ -148,19 +149,6 @@ class DisplayManager:
         for solid, color, ais_shape in parts_list:
             self.display.Context.Activate(ais_shape, 4, False)  # 4 = TopAbs_FACE
             ais_shape.SetHilightMode(1)
-
-        # Add XYZ axis triedron widget
-        self._add_triedron()
-
-    def _add_triedron(self):
-        """Add XYZ axis orientation widget to the view."""
-        try:
-            # Enable the view corner trihedron
-            # Arguments: position (Aspect_TypeOfTriedronPosition), color (Quantity_Color), scale, asWireframe
-            self.view.TriedronDisplay(Aspect_TOTP_RIGHT_LOWER, Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB), 0.1, True)
-            logger.info("XYZ axis widget added to view")
-        except Exception as e:
-            logger.warning(f"Could not add XYZ axis widget: {e}")
 
     def setup_resize_handler(self):
         """Setup resize event handler with debouncing."""
@@ -195,35 +183,4 @@ class DisplayManager:
         except Exception as e:
             logger.warning(f"Could not perform final update: {e}")
 
-    def print_controls(self):
-        """Print viewer controls to console."""
-        logger.info("\n" + "="*60)
-        logger.info("SELECTION COLORS CONFIGURATION:")
-        logger.info(f"  Fill: RGB{self.config.SELECTION_COLOR}")
-        logger.info(f"  Outline: RGB{self.config.SELECTION_OUTLINE_COLOR}")
-        logger.info(f"  Outline width: {self.config.SELECTION_OUTLINE_WIDTH}px")
-        logger.info("  (Edit ViewerConfig class to customize)")
-        logger.info("="*60)
 
-        logger.info("\nViewer Controls:")
-        logger.info("  - Left mouse button: Rotate")
-        logger.info("  - Right mouse button: Pan")
-        logger.info("  - Mouse wheel: Zoom")
-        logger.info("  - 'f': Fit all")
-        logger.info("  - 's': Toggle face selection mode")
-        logger.info("  - 'l': Select largest external face per part")
-        logger.info("  - 'c': Clear all selections")
-        logger.info("  - 'd': Toggle duplicate parts visibility")
-        logger.info("  - 'p': Toggle planar alignment (lay parts flat)")
-        logger.info("  - '1': Cycle selection fill color (in selection mode)")
-        logger.info("  - '2': Cycle outline color (in selection mode)")
-        logger.info("\nView Presets (Shift + number keys):")
-        logger.info("  - Shift+1 (!): Front view")
-        logger.info("  - Shift+2 (@): Back view")
-        logger.info("  - Shift+3 (#): Right view")
-        logger.info("  - Shift+4 ($): Left view")
-        logger.info("  - Shift+5 (%): Top view")
-        logger.info("  - Shift+6 (^): Bottom view")
-        logger.info("  - Shift+7 (&): Isometric view")
-        logger.info("\nOther:")
-        logger.info("  - 'q' or ESC: Quit")

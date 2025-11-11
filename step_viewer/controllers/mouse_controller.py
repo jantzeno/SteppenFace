@@ -1,12 +1,7 @@
-"""
-Mouse event controller.
-"""
-
-from ..managers import SelectionManager
-
+from ..managers.selection_manager import SelectionManager
 
 class MouseController:
-    """Handles all mouse events for navigation and selection."""
+    """Handles main application mouse events for navigation and face selection."""
 
     def __init__(self, view, display, selection_manager: SelectionManager, root):
         self.view = view

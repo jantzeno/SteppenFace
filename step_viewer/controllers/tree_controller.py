@@ -4,11 +4,8 @@ Tree controller for managing part selection and highlighting in the UI tree.
 
 import tkinter as tk
 from typing import List, Tuple, Dict, Any
-
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
-
-from ...managers.log_manager import logger
-
+from ..managers.log_manager import logger
 
 class TreeController:
     """Manages tree-based part selection and highlighting."""

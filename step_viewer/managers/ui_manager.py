@@ -9,7 +9,7 @@ from tkinter import ttk
 from ..config import ViewerConfig
 
 
-class ViewerUI:
+class UIManager:
     """Manages the viewer UI components."""
 
     def __init__(self, root: tk.Tk, config: ViewerConfig):

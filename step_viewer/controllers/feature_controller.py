@@ -4,9 +4,7 @@ Feature controller for managing viewer features like duplicate visibility and pl
 
 import tkinter as tk
 from typing import List, Tuple, Dict
-
-from ...managers.log_manager import logger
-
+from ..managers.log_manager import logger
 
 class FeatureController:
     """Manages feature toggles like duplicate visibility, planar alignment, and face selection."""

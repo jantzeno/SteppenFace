@@ -4,8 +4,7 @@ Plate controller for managing plates and part arrangement.
 
 import tkinter as tk
 from tkinter import simpledialog, messagebox
-
-from ...managers.log_manager import logger
+from ..managers.log_manager import logger
 
 
 class PlateController:

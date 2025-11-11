@@ -1,30 +1,24 @@
-"""
-Main STEP viewer application.
-"""
-
 from typing import Optional, Tuple
 import tkinter as tk
 
 from OCC.Core.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Lin
 from OCC.Core.IntAna import IntAna_IntConicQuad
 
-from .config import ViewerConfig
-from .managers import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager, PlateManager, EventManager
-from .managers.log_manager import logger
-from .controllers import MouseController, KeyboardController
-from .loaders import StepLoader
-from .ui import ViewerUI, DisplayManager
-from .ui.controllers import TreeController, ExclusionZoneController, PlateController, FeatureController
+from ..config import ViewerConfig
+from . import ColorManager, SelectionManager, ExplodeManager, DeduplicationManager, PlanarAlignmentManager, PlateManager, EventManager, UIManager, CanvasManager
+from .log_manager import logger
+from ..controllers import MouseController, KeyboardController, TreeController, ExclusionZoneController, PlateController, FeatureController
+from ..loaders import StepLoader
 
 
-class StepViewer:
+class ApplicationManager:
     """Main coordinator class for the STEP viewer application."""
 
     def __init__(self, filename: str, config: Optional[ViewerConfig] = None):
         self.filename = filename
         self.config = config or ViewerConfig()
         self.root = tk.Tk()
-        self.ui = ViewerUI(self.root, self.config)
+        self.ui = UIManager(self.root, self.config)
         self.shape = None
         self.display = None
         self.parts_list = []
@@ -51,23 +45,23 @@ class StepViewer:
         self.root.update_idletasks()
 
         # Initialize display manager
-        self.display_manager = DisplayManager(self.root, self.config)
+        self.display_manager = CanvasManager(self.root, self.config)
         self.display = self.display_manager.init_display(right_panel)
         self.canvas = self.display_manager.canvas
-        self.view = self.display_manager.view
+        self.view = self.display_manager.display.View
 
         # Setup managers and controllers
-        self._setup_controllers()
+        self._setup_event_controllers()
 
-        # Display the model
+        # Display the model first to populate parts_list
         self.parts_list = self.display_manager.display_model(
             self.shape, self.explode_manager, self.planar_alignment_manager
         )
 
-        # Configure display settings
+        # Configure display settings (must be after display_model to activate face selection)
         self.display_manager.configure_display(self.parts_list, self.color_manager)
 
-        # Populate UI (deduplication manager not initialized yet at this point)
+        # Populate UI
         self.ui.populate_parts_tree(self.parts_list)
 
         # Setup UI controllers
@@ -79,9 +73,6 @@ class StepViewer:
         # Setup view buttons
         self._setup_view_buttons()
 
-        # Print controls
-        self.display_manager.print_controls()
-
         # Bind events
         self._bind_events()
 
@@ -92,7 +83,7 @@ class StepViewer:
         self.root.after(150, self.display_manager.final_update)
         self.root.mainloop()
 
-    def _setup_controllers(self):
+    def _setup_event_controllers(self):
         """Setup all core controllers and managers."""
         # Initialize managers
         self.color_manager = ColorManager(self.config)

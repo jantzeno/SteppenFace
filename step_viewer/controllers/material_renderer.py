@@ -3,7 +3,6 @@ Material rendering for CAD shapes.
 """
 
 from typing import Optional
-
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
 from OCC.Core.Graphic3d import Graphic3d_MaterialAspect, Graphic3d_NameOfMaterial
 

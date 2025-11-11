@@ -1,13 +1,10 @@
 """
-Color management for selection highlighting.
+Color management for face selection highlighting.
 """
 
 from typing import Tuple
-
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
-
 from ..config import ViewerConfig
-
 
 class ColorManager:
     """Manages selection colors and color cycling."""

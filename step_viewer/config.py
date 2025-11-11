@@ -1,8 +1,3 @@
-"""
-Configuration settings for the STEP viewer.
-"""
-
-
 class ViewerConfig:
     """Configuration settings for the STEP viewer."""
 

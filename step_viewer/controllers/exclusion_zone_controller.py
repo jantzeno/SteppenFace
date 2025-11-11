@@ -5,14 +5,12 @@ Exclusion zone controller for drawing and managing exclusion zones on plates.
 import tkinter as tk
 from typing import Optional, Tuple
 from tkinter import messagebox
-
 from OCC.Core.gp import gp_Pnt
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
 from OCC.Core.AIS import AIS_Shape
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
 from OCC.Core.Graphic3d import Graphic3d_MaterialAspect, Graphic3d_NOM_PLASTIC
-
-from ...managers.log_manager import logger
+from ..managers.log_manager import logger
 
 
 class ExclusionZoneController:
