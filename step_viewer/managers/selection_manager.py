@@ -13,8 +13,6 @@ from OCC.Core.BRepGProp import brepgprop
 from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
 from OCC.Core.gp import gp_Pnt, gp_Vec, gp_Dir, gp_Lin, gp_Ax1, gp_Trsf
 from OCC.Core.BRepIntCurveSurface import BRepIntCurveSurface_Inter
-from OCC.Core.GeomAbs import GeomAbs_Plane
-import numpy as np
 
 from ..config import ViewerConfig
 from .color_manager import ColorManager
@@ -435,8 +433,6 @@ class SelectionManager:
 
     def _calculate_assembly_center(self, parts_list: List[Tuple]) -> gp_Pnt:
         """Calculate the center point of the entire assembly."""
-        from OCC.Core.BRepGProp import brepgprop
-
         total_x = 0.0
         total_y = 0.0
         total_z = 0.0
