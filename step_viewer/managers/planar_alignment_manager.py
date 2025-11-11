@@ -14,7 +14,7 @@ from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
 from OCC.Core.GeomAbs import GeomAbs_Plane
 
-from ..logger import logger
+from .log_manager import logger
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform

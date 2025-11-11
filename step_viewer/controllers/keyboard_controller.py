@@ -5,7 +5,7 @@ Keyboard event controller.
 from ..config import ViewerConfig
 from ..managers import ColorManager, SelectionManager
 from .view_controller import ViewController
-from ..logger import logger
+from ..managers.log_manager import logger
 
 
 class KeyboardController:

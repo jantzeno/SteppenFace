@@ -8,5 +8,7 @@ from .explode_manager import ExplodeManager
 from .deduplication_manager import DeduplicationManager
 from .planar_alignment_manager import PlanarAlignmentManager
 from .plate_manager import PlateManager, Plate, ExclusionZone
+from .event_manager import EventManager
+from .log_manager import logger
 
-__all__ = ['ColorManager', 'SelectionManager', 'ExplodeManager', 'DeduplicationManager', 'PlanarAlignmentManager', 'PlateManager', 'Plate', 'ExclusionZone']
+__all__ = ['ColorManager', 'SelectionManager', 'ExplodeManager', 'DeduplicationManager', 'PlanarAlignmentManager', 'PlateManager', 'Plate', 'ExclusionZone', 'EventManager', 'logger']

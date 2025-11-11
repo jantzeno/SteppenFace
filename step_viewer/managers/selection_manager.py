@@ -16,7 +16,7 @@ from OCC.Core.BRepIntCurveSurface import BRepIntCurveSurface_Inter
 
 from ..config import ViewerConfig
 from .color_manager import ColorManager
-from ..logger import logger
+from .log_manager import logger
 
 
 class SelectionManager:

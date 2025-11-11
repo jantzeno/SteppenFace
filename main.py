@@ -16,7 +16,7 @@ except ImportError:
     sys.exit(1)
 
 from step_viewer.viewer import StepViewer
-from step_viewer.logger import logger
+from step_viewer.managers.log_manager import logger
 
 
 def main():

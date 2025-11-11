@@ -10,7 +10,7 @@ from OCC.Core.IFSelect import IFSelect_RetDone
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_FACE
 
-from step_viewer.logger import logger
+from step_viewer.managers.log_manager import logger
 
 
 class StepLoader:

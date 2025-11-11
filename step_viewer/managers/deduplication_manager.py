@@ -8,7 +8,7 @@ from OCC.Core.BRepGProp import brepgprop
 from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_EDGE
 from OCC.Core.TopExp import TopExp_Explorer
 
-from ..logger import logger
+from .log_manager import logger
 
 
 class DeduplicationManager:
