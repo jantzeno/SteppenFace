@@ -134,39 +134,39 @@ class ViewHelper:
         self.view = view
 
     def set_top_view(self):
-        """Set camera to top view (looking down -Z)."""
-        self.view.SetProj(0, 0, -1)  # Look down negative Z
-        self.view.SetUp(0, 1, 0)     # Y is up
+        """Set camera to top view (looking down from +Z)."""
+        self.view.SetProj(0, 0, 1)   # Camera at +Z looking down
+        self.view.SetUp(0, 1, 0)     # +Y is up in screen space
         self.view.FitAll()
 
     def set_bottom_view(self):
-        """Set camera to bottom view (looking up +Z)."""
-        self.view.SetProj(0, 0, 1)   # Look up positive Z
-        self.view.SetUp(0, 1, 0)     # Y is up
+        """Set camera to bottom view (looking up from -Z)."""
+        self.view.SetProj(0, 0, -1)  # Camera at -Z looking up
+        self.view.SetUp(0, 1, 0)     # +Y is up in screen space
         self.view.FitAll()
 
     def set_front_view(self):
-        """Set camera to front view (looking along -Y)."""
-        self.view.SetProj(0, -1, 0)  # Look along negative Y
-        self.view.SetUp(0, 0, 1)     # Z is up
+        """Set camera to front view (looking from -Y towards +Y)."""
+        self.view.SetProj(0, -1, 0)  # Camera at -Y (behind) looking forward
+        self.view.SetUp(0, 0, 1)     # +Z is up in screen space
         self.view.FitAll()
 
     def set_back_view(self):
-        """Set camera to back view (looking along +Y)."""
-        self.view.SetProj(0, 1, 0)   # Look along positive Y
-        self.view.SetUp(0, 0, 1)     # Z is up
+        """Set camera to back view (looking from +Y towards -Y)."""
+        self.view.SetProj(0, 1, 0)   # Camera at +Y (front) looking backward
+        self.view.SetUp(0, 0, 1)     # +Z is up in screen space
         self.view.FitAll()
 
     def set_right_view(self):
-        """Set camera to right view (looking along -X)."""
-        self.view.SetProj(-1, 0, 0)  # Look along negative X
-        self.view.SetUp(0, 0, 1)     # Z is up
+        """Set camera to right view (looking from +X towards -X)."""
+        self.view.SetProj(1, 0, 0)   # Camera at +X (right) looking left
+        self.view.SetUp(0, 0, 1)     # +Z is up in screen space
         self.view.FitAll()
 
     def set_left_view(self):
-        """Set camera to left view (looking along +X)."""
-        self.view.SetProj(1, 0, 0)   # Look along positive X
-        self.view.SetUp(0, 0, 1)     # Z is up
+        """Set camera to left view (looking from -X towards +X)."""
+        self.view.SetProj(-1, 0, 0)  # Camera at -X (left) looking right
+        self.view.SetUp(0, 0, 1)     # +Z is up in screen space
         self.view.FitAll()
 
     def set_isometric_view(self):
