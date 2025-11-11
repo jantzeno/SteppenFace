@@ -33,6 +33,11 @@ class ViewerConfig:
     SHEET_WIDTH_MM = 600.0  # Default: 600mm
     SHEET_HEIGHT_MM = 400.0  # Default: 400mm
 
+    # Part arrangement settings
+    DEFAULT_PART_SPACING_MM = 5.0  # Default spacing between parts during arrangement
+    DEFAULT_PLATE_MARGIN_MM = 5.0  # Default margin from plate edges and exclusion zones
+    DEFAULT_ALLOW_ROTATION = True  # Allow 90-degree rotation by default
+
     # Color presets
     SELECTION_COLOR_PRESETS = [
         ((1.0, 0.5, 0.0), "Orange"),

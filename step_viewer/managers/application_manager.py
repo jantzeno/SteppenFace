@@ -126,8 +126,10 @@ class ApplicationManager:
         # Plate controller
         self.plate_controller = PlateController(
             self.root, self.canvas, self.display, self.ui,
-            self.plate_manager, self.planar_alignment_manager
+            self.plate_manager, self.planar_alignment_manager,
+            self.selection_manager
         )
+        self.plate_controller.set_parts_list(self.parts_list)
         self.plate_controller.setup_controls()
 
         # Exclusion zone controller
