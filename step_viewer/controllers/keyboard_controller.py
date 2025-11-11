@@ -2,9 +2,9 @@
 Keyboard event controller.
 """
 
+from OCC.Core.V3d import V3d_XnegYnegZpos, V3d_XposYnegZpos
 from ..config import ViewerConfig
 from ..managers import ColorManager, SelectionManager
-from .view_controller import ViewController
 from ..managers.log_manager import logger
 
 
@@ -20,7 +20,7 @@ class KeyboardController:
         self.config = config
         self.mode_label = None
         self.selection_label = None
-        self.view_controller = ViewController(display.View)
+        self.view_helper = ViewHelper(display.View)
 
     def set_ui_labels(self, mode_label, selection_label):
         """Set references to UI labels for updates."""
@@ -88,35 +88,90 @@ class KeyboardController:
     # View preset shortcuts (Shift + number keys)
     def on_key_shift_1(self, event):
         """Set front view."""
-        self.view_controller.set_front_view()
+        self.view_helper.set_front_view()
         logger.info("View: Front")
 
     def on_key_shift_2(self, event):
         """Set back view."""
-        self.view_controller.set_back_view()
+        self.view_helper.set_back_view()
         logger.info("View: Back")
 
     def on_key_shift_3(self, event):
         """Set right view."""
-        self.view_controller.set_right_view()
+        self.view_helper.set_right_view()
         logger.info("View: Right")
 
     def on_key_shift_4(self, event):
         """Set left view."""
-        self.view_controller.set_left_view()
+        self.view_helper.set_left_view()
         logger.info("View: Left")
 
     def on_key_shift_5(self, event):
         """Set top view."""
-        self.view_controller.set_top_view()
+        self.view_helper.set_top_view()
         logger.info("View: Top")
 
     def on_key_shift_6(self, event):
         """Set bottom view."""
-        self.view_controller.set_bottom_view()
+        self.view_helper.set_bottom_view()
         logger.info("View: Bottom")
 
     def on_key_shift_7(self, event):
         """Set isometric view."""
-        self.view_controller.set_isometric_view()
+        self.view_helper.set_isometric_view()
         logger.info("View: Isometric")
+
+class ViewHelper:
+    """Controller for managing camera view presets."""
+
+    def __init__(self, view):
+        """
+        Initialize view controller.
+
+        Args:
+            view: OCC.Display.View object
+        """
+        self.view = view
+
+    def set_top_view(self):
+        """Set camera to top view (looking down -Z)."""
+        self.view.SetProj(0, 0, -1)  # Look down negative Z
+        self.view.SetUp(0, 1, 0)     # Y is up
+        self.view.FitAll()
+
+    def set_bottom_view(self):
+        """Set camera to bottom view (looking up +Z)."""
+        self.view.SetProj(0, 0, 1)   # Look up positive Z
+        self.view.SetUp(0, 1, 0)     # Y is up
+        self.view.FitAll()
+
+    def set_front_view(self):
+        """Set camera to front view (looking along -Y)."""
+        self.view.SetProj(0, -1, 0)  # Look along negative Y
+        self.view.SetUp(0, 0, 1)     # Z is up
+        self.view.FitAll()
+
+    def set_back_view(self):
+        """Set camera to back view (looking along +Y)."""
+        self.view.SetProj(0, 1, 0)   # Look along positive Y
+        self.view.SetUp(0, 0, 1)     # Z is up
+        self.view.FitAll()
+
+    def set_right_view(self):
+        """Set camera to right view (looking along -X)."""
+        self.view.SetProj(-1, 0, 0)  # Look along negative X
+        self.view.SetUp(0, 0, 1)     # Z is up
+        self.view.FitAll()
+
+    def set_left_view(self):
+        """Set camera to left view (looking along +X)."""
+        self.view.SetProj(1, 0, 0)   # Look along positive X
+        self.view.SetUp(0, 0, 1)     # Z is up
+        self.view.FitAll()
+
+    def set_isometric_view(self):
+        """Set camera to isometric view."""
+        # Standard isometric projection (35.264° and 45°)
+        self.view.SetProj(1, -1, 1)  # Isometric direction
+        self.view.SetUp(0, 0, 1)     # Z is up
+        self.view.FitAll()

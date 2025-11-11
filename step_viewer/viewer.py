@@ -231,7 +231,7 @@ class StepViewer:
 
     def _setup_view_buttons(self):
         """Setup view preset button callbacks."""
-        view_controller = self.keyboard_controller.view_controller
+        view_controller = self.keyboard_controller.view_helper
 
         self.ui.view_buttons['front'].config(command=lambda: view_controller.set_front_view())
         self.ui.view_buttons['back'].config(command=lambda: view_controller.set_back_view())
