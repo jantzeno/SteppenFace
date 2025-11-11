@@ -16,6 +16,7 @@ from . import (
     UIManager,
     CanvasManager,
 )
+from .units_manager import UnitsManager, UnitSystem
 from .log_manager import logger
 from ..controllers import (
     MouseController,
@@ -104,6 +105,15 @@ class ApplicationManager:
         """Setup all core controllers and managers."""
         # Initialize managers
         self.color_manager = ColorManager(self.config)
+
+        # Initialize units manager with configured default unit system
+        default_unit = (
+            UnitSystem.METRIC
+            if self.config.DEFAULT_UNIT_SYSTEM == "mm"
+            else UnitSystem.IMPERIAL
+        )
+        self.units_manager = UnitsManager(default_unit)
+
         self.selection_manager = SelectionManager(
             self.display, self.color_manager, self.config
         )
@@ -171,6 +181,7 @@ class ApplicationManager:
             self.plate_manager,
             self.planar_alignment_manager,
             self.selection_manager,
+            self.units_manager,
         )
         self.plate_controller.set_parts_list(self.parts_list)
         self.plate_controller.setup_controls()

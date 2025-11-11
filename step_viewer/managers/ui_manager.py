@@ -400,6 +400,60 @@ class UIManager:
         btn_clear_exclusions.pack(side=tk.LEFT, expand=True, fill=tk.X)
         self.plate_widgets["clear_exclusions"] = btn_clear_exclusions
 
+        # Button row 5: Edit plate dimensions
+        btn_row5 = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
+        btn_row5.pack(fill=tk.X, pady=2)
+
+        btn_edit_dimensions = tk.Button(
+            btn_row5, text="Edit Plate Size", **button_style
+        )
+        btn_edit_dimensions.pack(expand=True, fill=tk.X)
+        self.plate_widgets["edit_dimensions"] = btn_edit_dimensions
+
+        # Unit selection frame
+        unit_frame = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
+        unit_frame.pack(fill=tk.X, pady=(5, 0))
+
+        unit_label = tk.Label(
+            unit_frame,
+            text="Units:",
+            bg=self.config.PANEL_BG,
+            fg="#aaaaaa",
+            font=("Arial", 8),
+        )
+        unit_label.pack(side=tk.LEFT)
+
+        self.unit_var = tk.StringVar(value="mm")
+        self.plate_widgets["unit_var"] = self.unit_var
+
+        unit_mm = tk.Radiobutton(
+            unit_frame,
+            text="mm",
+            variable=self.unit_var,
+            value="mm",
+            bg=self.config.PANEL_BG,
+            fg="#ffffff",
+            selectcolor=self.config.PANEL_BG,
+            activebackground=self.config.PANEL_BG,
+            activeforeground="#00e0ff",
+            font=("Arial", 8),
+        )
+        unit_mm.pack(side=tk.LEFT, padx=5)
+
+        unit_in = tk.Radiobutton(
+            unit_frame,
+            text="inches",
+            variable=self.unit_var,
+            value="in",
+            bg=self.config.PANEL_BG,
+            fg="#ffffff",
+            selectcolor=self.config.PANEL_BG,
+            activebackground=self.config.PANEL_BG,
+            activeforeground="#00e0ff",
+            font=("Arial", 8),
+        )
+        unit_in.pack(side=tk.LEFT, padx=5)
+
         # Info label showing plate count and part association
         self.plate_info_label = tk.Label(
             plate_frame,

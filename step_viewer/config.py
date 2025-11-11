@@ -25,13 +25,14 @@ class ViewerConfig:
     # The threshold will be: max(2.5 × thickness, 5.0mm) to handle thin parts
     MATERIAL_THICKNESS_MM = 3.0  # Default: 3mm (adjust based on your material)
 
-    # Sheet/platter size for planar view (mm)
-    # Common laser cutter bed sizes:
-    # - 600x400mm (small)
-    # - 900x600mm (medium)
-    # - 1300x900mm (large)
-    SHEET_WIDTH_MM = 600.0  # Default: 600mm
-    SHEET_HEIGHT_MM = 400.0  # Default: 400mm
+    # Sheet/platter size for planar view (mm - internal units)
+    # 20x12 inches
+    SHEET_WIDTH_MM = 508.0
+    SHEET_HEIGHT_MM = 304.0
+
+    # Default unit system for display ("mm" or "in")
+    # All internal calculations use mm
+    DEFAULT_UNIT_SYSTEM = "mm"  # Can be "mm" or "in"
 
     # Part arrangement settings
     DEFAULT_PART_SPACING_MM = 5.0  # Default spacing between parts during arrangement
