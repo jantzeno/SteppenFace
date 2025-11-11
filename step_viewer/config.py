@@ -35,8 +35,8 @@ class ViewerConfig:
     DEFAULT_UNIT_SYSTEM = "mm"  # Can be "mm" or "in"
 
     # Part arrangement settings
-    DEFAULT_PART_SPACING_MM = 5.0  # Default spacing between parts during arrangement
-    DEFAULT_PLATE_MARGIN_MM = 5.0  # Default margin from plate edges and exclusion zones
+    DEFAULT_PART_SPACING_MM = 1.0  # Default spacing between parts during arrangement
+    DEFAULT_PLATE_MARGIN_MM = 2.0  # Default margin from plate edges and exclusion zones
     DEFAULT_ALLOW_ROTATION = True  # Allow 90-degree rotation by default
 
     # Color presets
