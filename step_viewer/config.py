@@ -3,7 +3,7 @@ class ViewerConfig:
 
     # Display settings
     WINDOW_WIDTH = 1024
-    WINDOW_HEIGHT = 768
+    WINDOW_HEIGHT = 900
     BACKGROUND_COLOR = (17/255.0, 18/255.0, 22/255.0)
     MSAA_SAMPLES = 4  # Anti-aliasing quality
 
