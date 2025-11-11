@@ -324,6 +324,18 @@ class ViewerUI:
         btn_arrange.pack(expand=True, fill=tk.X)
         self.plate_widgets['arrange'] = btn_arrange
 
+        # Button row 4: Exclusion zone controls
+        btn_row4 = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
+        btn_row4.pack(fill=tk.X, pady=2)
+
+        btn_draw_exclusion = tk.Button(btn_row4, text="Draw Exclusion", **button_style)
+        btn_draw_exclusion.pack(side=tk.LEFT, padx=(0, 5), expand=True, fill=tk.X)
+        self.plate_widgets['draw_exclusion'] = btn_draw_exclusion
+
+        btn_clear_exclusions = tk.Button(btn_row4, text="Clear All", **button_style)
+        btn_clear_exclusions.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.plate_widgets['clear_exclusions'] = btn_clear_exclusions
+
         # Info label showing plate count and part association
         self.plate_info_label = tk.Label(
             plate_frame, text="Plates: 0 | Parts assigned: 0",

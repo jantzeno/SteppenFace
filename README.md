@@ -13,6 +13,7 @@ A modular, feature-rich CAD file viewer for STEP files with interactive face sel
 - **Planar Alignment**: Lay parts flat for CNC cutting visualization
 - **Multi-Plate Management**: Organize parts across multiple material sheets with automatic grid layout
 - **Part Association**: Automatic part-to-plate assignment based on position
+- **Exclusion Zones**: Draw red rectangles to mark off-limits areas on plates (for defects, clamps, etc.)
 
 ## Installation
 
@@ -119,12 +120,22 @@ Each class has one clear purpose:
   - **Delete Plate**: Remove selected plate (parts remain in model)
   - **Rename Plate**: Assign descriptive names to plates
   - **Arrange Parts**: Placeholder for future auto-arrangement logic
+  - **Draw Exclusion**: Toggle drawing mode, then click & drag on plate to create red exclusion zones
+  - **Clear All**: Remove all exclusion zones from the selected plate
 
 When planar alignment is enabled:
 - Parts are automatically laid flat based on selected faces
 - Parts are arranged in a grid layout
 - Multiple plates are shown with automatic grid spacing
 - Parts are auto-assigned to plates based on their 2D position
+
+### Exclusion Zones
+- Select a plate from the list
+- Click "Draw Exclusion" to enter drawing mode (button turns orange)
+- Click and drag on the plate to create red rectangular zones
+- These zones mark areas where parts should not be placed (e.g., defects, clamp locations)
+- Use "Clear All" to remove all exclusion zones from a plate
+- Each plate has its own independent set of exclusion zones
 
 ## Configuration
 

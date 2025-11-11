@@ -16,6 +16,42 @@ from OCC.Core.BRepBndLib import brepbndlib
 
 
 @dataclass
+class ExclusionZone:
+    """Represents a rectangular exclusion zone on a plate where parts cannot be placed."""
+
+    id: int
+    x: float  # X position relative to plate origin
+    y: float  # Y position relative to plate origin
+    width: float
+    height: float
+    ais_shape: Optional[AIS_Shape] = None  # Visual representation
+
+    def get_bounds(self) -> Tuple[float, float, float, float]:
+        """Get the bounds of the exclusion zone (xmin, ymin, xmax, ymax)."""
+        return (
+            self.x,
+            self.y,
+            self.x + self.width,
+            self.y + self.height
+        )
+
+    def contains_point(self, x: float, y: float) -> bool:
+        """Check if a 2D point is within the exclusion zone."""
+        xmin, ymin, xmax, ymax = self.get_bounds()
+        return xmin <= x <= xmax and ymin <= y <= ymax
+
+    def overlaps_rect(self, x: float, y: float, width: float, height: float) -> bool:
+        """Check if a rectangle overlaps with this exclusion zone."""
+        # Rectangle A: exclusion zone
+        ax1, ay1, ax2, ay2 = self.get_bounds()
+        # Rectangle B: input rectangle
+        bx1, by1, bx2, by2 = x, y, x + width, y + height
+
+        # Check for no overlap (then negate)
+        return not (ax2 < bx1 or bx2 < ax1 or ay2 < by1 or by2 < ay1)
+
+
+@dataclass
 class Plate:
     """Represents a single material plate/sheet."""
 
@@ -26,7 +62,9 @@ class Plate:
     x_offset: float = 0.0  # Position in grid
     y_offset: float = 0.0  # Position in grid
     part_indices: Set[int] = field(default_factory=set)  # Parts associated with this plate
+    exclusion_zones: List[ExclusionZone] = field(default_factory=list)  # Off-limits areas
     ais_shape: Optional[AIS_Shape] = None  # Visual representation
+    next_exclusion_id: int = field(default=1, init=False)  # Counter for exclusion zone IDs
 
     def get_bounds(self) -> Tuple[float, float, float, float]:
         """Get the bounds of the plate (xmin, ymin, xmax, ymax)."""
@@ -41,6 +79,70 @@ class Plate:
         """Check if a 2D point is within the plate bounds."""
         xmin, ymin, xmax, ymax = self.get_bounds()
         return xmin <= x <= xmax and ymin <= y <= ymax
+
+    def add_exclusion_zone(self, x: float, y: float, width: float, height: float) -> ExclusionZone:
+        """
+        Add an exclusion zone to the plate.
+        Coordinates are relative to the plate's origin (not global grid coordinates).
+
+        Args:
+            x: X position relative to plate origin
+            y: Y position relative to plate origin
+            width: Width of the exclusion zone
+            height: Height of the exclusion zone
+
+        Returns:
+            The created ExclusionZone
+        """
+        zone = ExclusionZone(
+            id=self.next_exclusion_id,
+            x=x,
+            y=y,
+            width=width,
+            height=height
+        )
+        self.exclusion_zones.append(zone)
+        self.next_exclusion_id += 1
+        return zone
+
+    def remove_exclusion_zone(self, zone_id: int) -> bool:
+        """
+        Remove an exclusion zone by ID.
+
+        Args:
+            zone_id: ID of the exclusion zone to remove
+
+        Returns:
+            True if zone was removed, False if not found
+        """
+        for i, zone in enumerate(self.exclusion_zones):
+            if zone.id == zone_id:
+                self.exclusion_zones.pop(i)
+                return True
+        return False
+
+    def clear_exclusion_zones(self):
+        """Remove all exclusion zones from the plate."""
+        self.exclusion_zones.clear()
+
+    def is_area_available(self, x: float, y: float, width: float, height: float) -> bool:
+        """
+        Check if a rectangular area is available (not overlapping any exclusion zones).
+        Coordinates are relative to the plate's origin.
+
+        Args:
+            x: X position relative to plate origin
+            y: Y position relative to plate origin
+            width: Width of the area
+            height: Height of the area
+
+        Returns:
+            True if area is available, False if it overlaps an exclusion zone
+        """
+        for zone in self.exclusion_zones:
+            if zone.overlaps_rect(x, y, width, height):
+                return False
+        return True
 
 
 class PlateManager:
@@ -246,7 +348,7 @@ class PlateManager:
 
     def show_all_plates(self, display):
         """
-        Show all plates in the display.
+        Show all plates and their exclusion zones in the display.
 
         Args:
             display: The OCC display context
@@ -258,9 +360,12 @@ class PlateManager:
             if plate.ais_shape is not None:
                 display.Context.Display(plate.ais_shape, True)
 
+            # Show exclusion zones for this plate
+            self._show_exclusion_zones(plate, display)
+
     def hide_all_plates(self, display):
         """
-        Hide all plates from the display.
+        Hide all plates and their exclusion zones from the display.
 
         Args:
             display: The OCC display context
@@ -269,9 +374,12 @@ class PlateManager:
             if plate.ais_shape is not None:
                 display.Context.Erase(plate.ais_shape, True)
 
+            # Hide exclusion zones for this plate
+            self._hide_exclusion_zones(plate, display)
+
     def update_all_plates(self, display):
         """
-        Update all plate geometries (e.g., after layout change).
+        Update all plate geometries and exclusion zones (e.g., after layout change).
 
         Args:
             display: The OCC display context
@@ -282,11 +390,17 @@ class PlateManager:
                 display.Context.Erase(plate.ais_shape, False)
                 plate.ais_shape = None
 
+            # Hide old exclusion zones
+            self._hide_exclusion_zones(plate, display)
+
             # Create new geometry
             self._create_plate_geometry(plate)
 
             if plate.ais_shape is not None:
                 display.Context.Display(plate.ais_shape, False)
+
+            # Show updated exclusion zones
+            self._show_exclusion_zones(plate, display)
 
         display.Context.UpdateCurrentViewer()
 
@@ -345,3 +459,88 @@ class PlateManager:
         ymax = max(plate.y_offset + plate.height_mm for plate in self.plates)
 
         return (xmin, ymin, xmax, ymax)
+
+    def _show_exclusion_zones(self, plate: Plate, display):
+        """
+        Show all exclusion zones for a plate.
+
+        Args:
+            plate: The Plate whose exclusion zones to show
+            display: The OCC display context
+        """
+        for zone in plate.exclusion_zones:
+            if zone.ais_shape is None:
+                self._create_exclusion_zone_geometry(zone, plate)
+
+            if zone.ais_shape is not None:
+                display.Context.Display(zone.ais_shape, False)
+
+    def _hide_exclusion_zones(self, plate: Plate, display):
+        """
+        Hide all exclusion zones for a plate.
+
+        Args:
+            plate: The Plate whose exclusion zones to hide
+            display: The OCC display context
+        """
+        for zone in plate.exclusion_zones:
+            if zone.ais_shape is not None:
+                display.Context.Erase(zone.ais_shape, False)
+                zone.ais_shape = None
+
+    def _create_exclusion_zone_geometry(self, zone: ExclusionZone, plate: Plate):
+        """
+        Create the visual geometry for an exclusion zone.
+
+        Args:
+            zone: The ExclusionZone to create geometry for
+            plate: The parent Plate (for global offset calculation)
+        """
+        # Calculate global coordinates (zone coords are relative to plate)
+        global_x = plate.x_offset + zone.x
+        global_y = plate.y_offset + zone.y
+
+        # Create a rectangular face at Z=0.1 (slightly above plate to be visible)
+        z = 0.1
+        p1 = gp_Pnt(global_x, global_y, z)
+        p2 = gp_Pnt(global_x + zone.width, global_y, z)
+        p3 = gp_Pnt(global_x + zone.width, global_y + zone.height, z)
+        p4 = gp_Pnt(global_x, global_y + zone.height, z)
+
+        # Create the exclusion zone face using a polygon wire
+        wire_builder = BRepBuilderAPI_MakePolygon()
+        wire_builder.Add(p1)
+        wire_builder.Add(p2)
+        wire_builder.Add(p3)
+        wire_builder.Add(p4)
+        wire_builder.Close()
+        wire = wire_builder.Wire()
+
+        face_builder = BRepBuilderAPI_MakeFace(wire)
+        zone_face = face_builder.Face()
+
+        # Create AIS_Shape for visualization
+        zone.ais_shape = AIS_Shape(zone_face)
+
+        # Style the exclusion zone - semi-transparent red
+        red_color = Quantity_Color(0.9, 0.2, 0.2, Quantity_TOC_RGB)
+        zone.ais_shape.SetColor(red_color)
+        zone.ais_shape.SetTransparency(0.5)  # Semi-transparent
+
+        # Set material
+        material = Graphic3d_MaterialAspect(Graphic3d_NOM_PLASTIC)
+        zone.ais_shape.SetMaterial(material)
+
+    def update_exclusion_zones(self, plate_id: int, display):
+        """
+        Update exclusion zones for a specific plate (recreate geometry).
+
+        Args:
+            plate_id: ID of the plate to update exclusion zones for
+            display: The OCC display context
+        """
+        plate = self.get_plate_by_id(plate_id)
+        if plate:
+            self._hide_exclusion_zones(plate, display)
+            self._show_exclusion_zones(plate, display)
+            display.Context.UpdateCurrentViewer()

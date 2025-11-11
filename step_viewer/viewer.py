@@ -3,7 +3,7 @@ Main STEP viewer application.
 """
 
 import random
-from typing import Optional
+from typing import Optional, Tuple
 import tkinter as tk
 
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRGB
@@ -119,6 +119,93 @@ class StepViewer:
         # Bind events
         self._bind_events()
 
+    def _get_world_coordinates(self, screen_x: int, screen_y: int) -> Tuple[float, float, float]:
+        """
+        Convert screen coordinates to 3D world coordinates on the Z=0 plane.
+        Uses ray casting to find intersection with the Z=0 plane.
+
+        Args:
+            screen_x: X coordinate in screen space
+            screen_y: Y coordinate in screen space
+
+        Returns:
+            Tuple of (x, y, z) world coordinates
+        """
+        try:
+            from OCC.Core.gp import gp_Pln, gp_Pnt, gp_Dir, gp_Lin
+            from OCC.Core.IntAna import IntAna_IntConicQuad
+
+            view = self.display.View
+
+            # Get ray from camera through screen point
+            # ConvertWithProj returns 6 values: (x, y, z, dx, dy, dz)
+            # where (x,y,z) is a point on the ray and (dx,dy,dz) is the normalized direction
+            px, py, pz, dx, dy, dz = view.ConvertWithProj(screen_x, screen_y)
+
+            # Create ray from point and direction
+            ray_origin = gp_Pnt(px, py, pz)
+            ray_dir = gp_Dir(dx, dy, dz)
+            ray = gp_Lin(ray_origin, ray_dir)
+
+            # Create Z=0 plane
+            plane_origin = gp_Pnt(0, 0, 0)
+            plane_normal = gp_Dir(0, 0, 1)
+            z_plane = gp_Pln(plane_origin, plane_normal)
+
+            # Calculate intersection
+            intersection = IntAna_IntConicQuad(ray, z_plane, 1e-9)
+
+            if intersection.IsDone() and intersection.NbPoints() > 0:
+                # Get first intersection point
+                point = intersection.Point(1)
+                return (point.X(), point.Y(), 0.0)
+            else:
+                # Fallback: manual calculation
+                # Ray equation: P = P0 + t * D
+                # Plane equation: Z = 0
+                # Solve for t: pz + t * dz = 0  =>  t = -pz / dz
+                if abs(dz) > 1e-9:
+                    t = -pz / dz
+                    x = px + t * dx
+                    y = py + t * dy
+                    return (x, y, 0.0)
+                else:
+                    # Ray is parallel to Z=0 plane
+                    return (px, py, 0.0)
+        except Exception as e:
+            print(f"Warning: Could not convert screen coordinates: {e}")
+            return (0.0, 0.0, 0.0)
+
+    def _on_left_press_wrapper(self, event):
+        """Wrapper for left mouse press that handles exclusion zone drawing."""
+        if self.exclusion_draw_mode and self.planar_alignment_manager.is_aligned:
+            world_x, world_y, _ = self._get_world_coordinates(event.x, event.y)
+            if self._handle_exclusion_zone_click(world_x, world_y):
+                return  # Consumed by exclusion zone drawing
+
+        # Otherwise, delegate to normal mouse controller
+        self.mouse_controller.on_left_press(event)
+
+    def _on_left_motion_wrapper(self, event):
+        """Wrapper for left mouse motion that handles exclusion zone drawing."""
+        if self.exclusion_draw_mode and self.planar_alignment_manager.is_aligned and self.exclusion_start_point:
+            world_x, world_y, _ = self._get_world_coordinates(event.x, event.y)
+            if self._handle_exclusion_zone_drag(world_x, world_y):
+                return  # Consumed by exclusion zone drawing
+
+        # Otherwise, delegate to normal mouse controller
+        self.mouse_controller.on_left_motion(event)
+
+    def _on_release_wrapper(self, event):
+        """Wrapper for mouse release that handles exclusion zone drawing."""
+        if self.exclusion_draw_mode and self.planar_alignment_manager.is_aligned and self.exclusion_start_point:
+            world_x, world_y, _ = self._get_world_coordinates(event.x, event.y)
+            if self._handle_exclusion_zone_release(world_x, world_y):
+                return  # Consumed by exclusion zone drawing
+
+        # Otherwise, delegate to normal mouse controller
+        self.mouse_controller.on_release(event)
+
     def _bind_events(self):
         """Bind mouse and keyboard events."""
         # Unbind OCC's default handlers
@@ -142,10 +229,10 @@ class StepViewer:
                 return "break"
             return handler
 
-        # Bind mouse events
-        self.root.bind_all("<Button-1>", make_handler(self.mouse_controller.on_left_press))
-        self.root.bind_all("<B1-Motion>", make_handler(self.mouse_controller.on_left_motion))
-        self.root.bind_all("<ButtonRelease-1>", make_handler(self.mouse_controller.on_release))
+        # Bind mouse events (wrap to handle exclusion zone drawing)
+        self.root.bind_all("<Button-1>", make_handler(self._on_left_press_wrapper))
+        self.root.bind_all("<B1-Motion>", make_handler(self._on_left_motion_wrapper))
+        self.root.bind_all("<ButtonRelease-1>", make_handler(self._on_release_wrapper))
         self.root.bind_all("<Button-3>", make_handler(self.mouse_controller.on_right_press))
         self.root.bind_all("<B3-Motion>", make_handler(self.mouse_controller.on_right_motion))
         self.root.bind_all("<ButtonRelease-3>", make_handler(self.mouse_controller.on_release))
@@ -486,9 +573,17 @@ class StepViewer:
         self.ui.plate_widgets['delete'].config(command=self._delete_plate)
         self.ui.plate_widgets['rename'].config(command=self._rename_plate)
         self.ui.plate_widgets['arrange'].config(command=self._arrange_parts_on_plates)
+        self.ui.plate_widgets['draw_exclusion'].config(command=self._toggle_exclusion_draw_mode)
+        self.ui.plate_widgets['clear_exclusions'].config(command=self._clear_exclusion_zones)
 
         # Initialize plate list display
         self.ui.update_plate_list(self.plate_manager)
+
+        # State for exclusion zone drawing
+        self.exclusion_draw_mode = False
+        self.exclusion_start_point = None
+        self.exclusion_current_plate = None
+        self.exclusion_preview_shape = None  # Preview rectangle while dragging
 
     def _add_plate(self):
         """Add a new plate."""
@@ -609,6 +704,256 @@ class StepViewer:
 
         self.canvas.focus_set()
 
+    def _toggle_exclusion_draw_mode(self):
+        """Toggle exclusion zone drawing mode."""
+        from tkinter import messagebox
+
+        # Only allow in planar mode
+        if not self.planar_alignment_manager.is_aligned:
+            messagebox.showinfo(
+                "Planar View Required",
+                "Please enable planar alignment (press 'P') before drawing exclusion zones.",
+                parent=self.root
+            )
+            self.canvas.focus_set()
+            return
+
+        # Check if a plate is selected
+        selection = self.ui.plate_listbox.curselection()
+        if not selection:
+            messagebox.showwarning(
+                "No Plate Selected",
+                "Please select a plate from the list before drawing exclusion zones.",
+                parent=self.root
+            )
+            self.canvas.focus_set()
+            return
+
+        self.exclusion_draw_mode = not self.exclusion_draw_mode
+
+        if self.exclusion_draw_mode:
+            # Get selected plate
+            plate_idx = selection[0]
+            if plate_idx < len(self.plate_manager.plates):
+                self.exclusion_current_plate = self.plate_manager.plates[plate_idx]
+                self.ui.plate_widgets['draw_exclusion'].config(bg='#ff6600')  # Orange highlight
+                print(f"Exclusion draw mode ENABLED for '{self.exclusion_current_plate.name}'")
+                print("Click and drag on the plate to draw red exclusion zones")
+        else:
+            self.ui.plate_widgets['draw_exclusion'].config(bg='#3a3b3f')  # Normal color
+            self._clear_exclusion_preview()
+            self.exclusion_current_plate = None
+            self.exclusion_start_point = None
+            print("Exclusion draw mode DISABLED")
+
+        self.canvas.focus_set()
+
+    def _clear_exclusion_zones(self):
+        """Clear all exclusion zones from the selected plate."""
+        from tkinter import messagebox
+
+        # Get selected plate
+        selection = self.ui.plate_listbox.curselection()
+        if not selection:
+            messagebox.showwarning(
+                "No Plate Selected",
+                "Please select a plate to clear exclusion zones from.",
+                parent=self.root
+            )
+            self.canvas.focus_set()
+            return
+
+        plate_idx = selection[0]
+        if plate_idx >= len(self.plate_manager.plates):
+            self.canvas.focus_set()
+            return
+
+        plate = self.plate_manager.plates[plate_idx]
+
+        if len(plate.exclusion_zones) == 0:
+            messagebox.showinfo(
+                "No Exclusion Zones",
+                f"Plate '{plate.name}' has no exclusion zones to clear.",
+                parent=self.root
+            )
+            self.canvas.focus_set()
+            return
+
+        # Confirm clearing
+        if messagebox.askyesno(
+            "Clear Exclusion Zones",
+            f"Clear all {len(plate.exclusion_zones)} exclusion zone(s) from '{plate.name}'?",
+            parent=self.root
+        ):
+            # Hide the zones from display BEFORE clearing the list
+            if self.planar_alignment_manager.is_aligned:
+                for zone in plate.exclusion_zones:
+                    if zone.ais_shape is not None:
+                        self.display.Context.Erase(zone.ais_shape, False)
+                        zone.ais_shape = None
+                self.display.Context.UpdateCurrentViewer()
+
+            # Now clear the zones from the plate
+            plate.clear_exclusion_zones()
+            print(f"Cleared all exclusion zones from '{plate.name}'")
+
+        self.canvas.focus_set()
+
+    def _handle_exclusion_zone_click(self, x: float, y: float) -> bool:
+        """
+        Handle mouse click for exclusion zone drawing.
+
+        Args:
+            x: X coordinate in world space
+            y: Y coordinate in world space
+
+        Returns:
+            True if click was handled, False otherwise
+        """
+        if not self.exclusion_draw_mode or not self.exclusion_current_plate:
+            return False
+
+        # Check if click is within the selected plate
+        if not self.exclusion_current_plate.contains_point(x, y):
+            print("Click is outside the selected plate")
+            return True  # Consume the click but don't start drawing
+
+        # Start drawing exclusion zone
+        self.exclusion_start_point = (x, y)
+        print(f"Started exclusion zone at ({x:.1f}, {y:.1f})")
+        return True
+
+    def _handle_exclusion_zone_drag(self, x: float, y: float) -> bool:
+        """
+        Handle mouse drag for exclusion zone drawing.
+
+        Args:
+            x: X coordinate in world space
+            y: Y coordinate in world space
+
+        Returns:
+            True if drag was handled, False otherwise
+        """
+        if not self.exclusion_draw_mode or not self.exclusion_start_point:
+            return False
+
+        # Show preview of exclusion zone while dragging
+        self._update_exclusion_preview(x, y)
+        return True
+
+    def _handle_exclusion_zone_release(self, x: float, y: float) -> bool:
+        """
+        Handle mouse release for exclusion zone drawing.
+
+        Args:
+            x: X coordinate in world space
+            y: Y coordinate in world space
+
+        Returns:
+            True if release was handled, False otherwise
+        """
+        if not self.exclusion_draw_mode or not self.exclusion_start_point or not self.exclusion_current_plate:
+            return False
+
+        start_x, start_y = self.exclusion_start_point
+
+        # Calculate rectangle dimensions
+        x1, x2 = min(start_x, x), max(start_x, x)
+        y1, y2 = min(start_y, y), max(start_y, y)
+        width = x2 - x1
+        height = y2 - y1
+
+        # Only create if rectangle is big enough (at least 5mm)
+        if width >= 5.0 and height >= 5.0:
+            # Convert to plate-relative coordinates
+            plate_x = x1 - self.exclusion_current_plate.x_offset
+            plate_y = y1 - self.exclusion_current_plate.y_offset
+
+            # Add exclusion zone
+            zone = self.exclusion_current_plate.add_exclusion_zone(plate_x, plate_y, width, height)
+            print(f"Created exclusion zone {zone.id} on '{self.exclusion_current_plate.name}': "
+                  f"({width:.1f} x {height:.1f} mm)")
+
+            # Update display
+            if self.planar_alignment_manager.is_aligned:
+                self.plate_manager.update_exclusion_zones(self.exclusion_current_plate.id, self.display)
+                self.display.Repaint()
+        else:
+            print(f"Rectangle too small ({width:.1f} x {height:.1f} mm), minimum is 5x5mm")
+
+        # Clear preview and reset start point for next zone
+        self._clear_exclusion_preview()
+        self.exclusion_start_point = None
+        return True
+
+    def _update_exclusion_preview(self, current_x: float, current_y: float):
+        """
+        Update the preview rectangle while dragging.
+
+        Args:
+            current_x: Current X coordinate in world space
+            current_y: Current Y coordinate in world space
+        """
+        if not self.exclusion_start_point:
+            return
+
+        from OCC.Core.gp import gp_Pnt
+        from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
+        from OCC.Core.AIS import AIS_Shape
+        from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
+        from OCC.Core.Graphic3d import Graphic3d_MaterialAspect, Graphic3d_NOM_PLASTIC
+
+        # Clear old preview
+        self._clear_exclusion_preview()
+
+        start_x, start_y = self.exclusion_start_point
+
+        # Calculate rectangle bounds
+        x1, x2 = min(start_x, current_x), max(start_x, current_x)
+        y1, y2 = min(start_y, current_y), max(start_y, current_y)
+
+        # Create preview rectangle at Z=0.2 (above exclusion zones at 0.1)
+        z = 0.2
+        p1 = gp_Pnt(x1, y1, z)
+        p2 = gp_Pnt(x2, y1, z)
+        p3 = gp_Pnt(x2, y2, z)
+        p4 = gp_Pnt(x1, y2, z)
+
+        # Build the face
+        wire_builder = BRepBuilderAPI_MakePolygon()
+        wire_builder.Add(p1)
+        wire_builder.Add(p2)
+        wire_builder.Add(p3)
+        wire_builder.Add(p4)
+        wire_builder.Close()
+        wire = wire_builder.Wire()
+
+        face_builder = BRepBuilderAPI_MakeFace(wire)
+        preview_face = face_builder.Face()
+
+        # Create AIS shape with semi-transparent yellow/orange
+        self.exclusion_preview_shape = AIS_Shape(preview_face)
+        preview_color = Quantity_Color(1.0, 0.6, 0.0, Quantity_TOC_RGB)  # Orange
+        self.exclusion_preview_shape.SetColor(preview_color)
+        self.exclusion_preview_shape.SetTransparency(0.6)  # More transparent than final zones
+
+        material = Graphic3d_MaterialAspect(Graphic3d_NOM_PLASTIC)
+        self.exclusion_preview_shape.SetMaterial(material)
+
+        # Display the preview
+        self.display.Context.Display(self.exclusion_preview_shape, False)
+        self.display.Context.UpdateCurrentViewer()
+
+    def _clear_exclusion_preview(self):
+        """Clear the preview rectangle if it exists."""
+        if self.exclusion_preview_shape is not None:
+            try:
+                self.display.Context.Erase(self.exclusion_preview_shape, False)
+                self.display.Context.UpdateCurrentViewer()
+            except:
+                pass  # Ignore errors if shape was already cleared
+            self.exclusion_preview_shape = None
+
     def _print_controls(self):
         """Print viewer controls to console."""
         print("\n" + "="*60)
@@ -645,6 +990,8 @@ class StepViewer:
         print("  - Delete Plate: Remove selected plate (parts remain)")
         print("  - Rename Plate: Give plates descriptive names")
         print("  - Arrange Parts: Placeholder for auto-arrangement (future)")
+        print("  - Draw Exclusion: Click & drag to mark off-limits areas (red zones)")
+        print("  - Clear All: Remove all exclusion zones from selected plate")
         print("  - Parts are auto-assigned to plates when planar view is enabled")
         print("\nOther:")
         print("  - 'q' or ESC: Quit")

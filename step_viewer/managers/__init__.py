@@ -7,6 +7,6 @@ from .selection_manager import SelectionManager
 from .explode_manager import ExplodeManager
 from .deduplication_manager import DeduplicationManager
 from .planar_alignment_manager import PlanarAlignmentManager
-from .plate_manager import PlateManager, Plate
+from .plate_manager import PlateManager, Plate, ExclusionZone
 
-__all__ = ['ColorManager', 'SelectionManager', 'ExplodeManager', 'DeduplicationManager', 'PlanarAlignmentManager', 'PlateManager', 'Plate']
+__all__ = ['ColorManager', 'SelectionManager', 'ExplodeManager', 'DeduplicationManager', 'PlanarAlignmentManager', 'PlateManager', 'Plate', 'ExclusionZone']
