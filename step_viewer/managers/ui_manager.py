@@ -5,7 +5,6 @@ Main viewer UI components.
 from typing import List
 import tkinter as tk
 from tkinter import ttk
-
 from ..config import ViewerConfig
 
 

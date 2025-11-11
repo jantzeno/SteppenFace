@@ -1,14 +1,9 @@
 """
-Centralized logging configuration for the STEP viewer application.
-
-This module provides a configured logger that can be imported and used
-throughout the application to replace print statements.
+Centralized logging.
 """
 
 import logging
 import sys
-from pathlib import Path
-
 
 def setup_logger(name: str = "step_viewer", level: int = logging.INFO) -> logging.Logger:
     """

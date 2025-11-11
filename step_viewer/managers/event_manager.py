@@ -4,9 +4,6 @@ Event manager for managing mouse and keyboard event bindings.
 
 import tkinter as tk
 
-from .log_manager import logger
-
-
 class EventManager:
     """Manages event binding for mouse and keyboard interactions."""
 

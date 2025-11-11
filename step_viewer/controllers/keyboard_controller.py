@@ -2,7 +2,6 @@
 Keyboard event controller.
 """
 
-from OCC.Core.V3d import V3d_XnegYnegZpos, V3d_XposYnegZpos
 from ..config import ViewerConfig
 from ..managers.color_manager import ColorManager
 from ..managers.selection_manager import SelectionManager

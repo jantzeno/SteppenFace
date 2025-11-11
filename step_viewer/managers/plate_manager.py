@@ -2,11 +2,11 @@
 Plate manager for handling multiple material plates/sheets with part associations.
 """
 
-from typing import Optional, List, Tuple, Dict, Set
+from typing import Optional, List, Tuple, Set
 from dataclasses import dataclass, field
 import math
 
-from OCC.Core.gp import gp_Pnt, gp_Trsf, gp_Vec
+from OCC.Core.gp import gp_Pnt
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
 from OCC.Core.Graphic3d import Graphic3d_MaterialAspect, Graphic3d_NOM_PLASTIC
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
