@@ -8,6 +8,8 @@ from OCC.Core.BRepGProp import brepgprop
 from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_EDGE
 from OCC.Core.TopExp import TopExp_Explorer
 
+from ..logger import logger
+
 
 class DeduplicationManager:
     """Manages identification and filtering of duplicate parts based on geometry."""
@@ -66,9 +68,9 @@ class DeduplicationManager:
                 unique_parts.append((solid, color, ais_shape))
                 shape_signatures.append(signature)
 
-        print(f"\nDeduplication: Found {len(unique_parts)} unique parts out of {len(parts_list)} total")
+        logger.info(f"\nDeduplication: Found {len(unique_parts)} unique parts out of {len(parts_list)} total")
         if duplicate_groups:
-            print(f"  {sum(len(dups) for dups in duplicate_groups.values())} duplicates hidden")
+            logger.info(f"  {sum(len(dups) for dups in duplicate_groups.values())} duplicates hidden")
 
         return unique_parts, duplicate_groups
 

@@ -9,20 +9,23 @@ import sys
 try:
     from OCC.Core.STEPControl import STEPControl_Reader
 except ImportError:
-    print("Error: pythonocc-core is not installed.")
-    print("Install it using: conda install -c conda-forge pythonocc-core")
+    import logging
+    logging.basicConfig(level=logging.ERROR, format='[%(levelname)s] %(message)s')
+    logging.error("pythonocc-core is not installed.")
+    logging.error("Install it using: conda install -c conda-forge pythonocc-core")
     sys.exit(1)
 
 from step_viewer.viewer import StepViewer
+from step_viewer.logger import logger
 
 
 def main():
     """Main entry point."""
     if len(sys.argv) < 2:
-        print("Usage: python main.py <step_file>")
-        print("\nExample:")
-        print("  python main.py model.step")
-        print("  python main.py model.stp")
+        logger.error("Usage: python main.py <step_file>")
+        logger.info("\nExample:")
+        logger.info("  python main.py model.step")
+        logger.info("  python main.py model.stp")
         sys.exit(1)
 
     step_file = sys.argv[1]

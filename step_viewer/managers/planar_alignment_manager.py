@@ -13,6 +13,8 @@ from OCC.Core.TopAbs import TopAbs_FACE
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
 from OCC.Core.GeomAbs import GeomAbs_Plane
+
+from ..logger import logger
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
@@ -233,7 +235,7 @@ class PlanarAlignmentManager:
         display.FitAll()
         root.update_idletasks()
 
-        print(f"Parts aligned to lay flat in {grid_cols}-column grid")
+        logger.info(f"Parts aligned to lay flat in {grid_cols}-column grid")
 
     def _reset_alignment(self, display, root):
         """Reset parts to their original orientations."""
@@ -260,7 +262,7 @@ class PlanarAlignmentManager:
         root.update_idletasks()
 
         self.original_transformations = []
-        print("Parts reset to original orientation")
+        logger.info("Parts reset to original orientation")
 
     def _get_face_info(self, face) -> Optional[Tuple]:
         """

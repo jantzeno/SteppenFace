@@ -5,6 +5,7 @@ Keyboard event controller.
 from ..config import ViewerConfig
 from ..managers import ColorManager, SelectionManager
 from .view_controller import ViewController
+from ..logger import logger
 
 
 class KeyboardController:
@@ -39,33 +40,32 @@ class KeyboardController:
         is_selection = self.selection_manager.toggle_mode()
 
         if is_selection:
-            print("\n*** FACE SELECTION MODE ***")
-            print("  - Left click: Select/deselect faces")
-            print("  - Right click: Pan")
-            print("  - Mouse wheel: Zoom")
-            print("  - 's': Exit selection mode")
-            print("  - 'l': Select largest external face per part")
-            print("  - 'o': Toggle assembly origin (for face selection)")
-            print("  - 'c': Clear all selections")
-            print("  - '1': Cycle selection fill color")
-            print("  - '2': Cycle outline color")
+            logger.info("\n*** FACE SELECTION MODE ***")
+            logger.info("  - Left click: Select/deselect faces")
+            logger.info("  - Right click: Pan")
+            logger.info("  - Mouse wheel: Zoom")
+            logger.info("  - 's': Exit selection mode")
+            logger.info("  - 'l': Select largest external face per part")
+            logger.info("  - 'c': Clear all selections")
+            logger.info("  - '1': Cycle selection fill color")
+            logger.info("  - '2': Cycle outline color")
 
             fill_rgb, fill_name = self.color_manager.get_current_fill_color()
             outline_rgb, outline_name = self.color_manager.get_current_outline_color()
-            print(f"\n  CURRENT COLORS:")
-            print(f"    Fill: {fill_name} RGB{fill_rgb}")
-            print(f"    Outline: {outline_name} RGB{outline_rgb}")
-            print(f"    Outline width: {self.config.SELECTION_OUTLINE_WIDTH}px\n")
+            logger.info(f"\n  CURRENT COLORS:")
+            logger.info(f"    Fill: {fill_name} RGB{fill_rgb}")
+            logger.info(f"    Outline: {outline_name} RGB{outline_rgb}")
+            logger.info(f"    Outline width: {self.config.SELECTION_OUTLINE_WIDTH}px\n")
 
             self.root.configure(bg=self.config.SELECTION_MODE_BG)
             if self.mode_label:
                 self.mode_label.config(text="Mode: Selection", fg='#00ff00')
         else:
-            print("\n*** NAVIGATION MODE ***")
-            print("  - Left click: Rotate")
-            print("  - Right click: Pan")
-            print("  - Mouse wheel: Zoom")
-            print("  - 's': Enter selection mode")
+            logger.info("\n*** NAVIGATION MODE ***")
+            logger.info("  - Left click: Rotate")
+            logger.info("  - Right click: Pan")
+            logger.info("  - Mouse wheel: Zoom")
+            logger.info("  - 's': Enter selection mode")
 
             self.root.configure(bg=self.config.DARK_BG)
             if self.mode_label:
@@ -89,46 +89,34 @@ class KeyboardController:
     def on_key_shift_1(self, event):
         """Set front view."""
         self.view_controller.set_front_view()
-        print("View: Front")
+        logger.info("View: Front")
 
     def on_key_shift_2(self, event):
         """Set back view."""
         self.view_controller.set_back_view()
-        print("View: Back")
+        logger.info("View: Back")
 
     def on_key_shift_3(self, event):
         """Set right view."""
         self.view_controller.set_right_view()
-        print("View: Right")
+        logger.info("View: Right")
 
     def on_key_shift_4(self, event):
         """Set left view."""
         self.view_controller.set_left_view()
-        print("View: Left")
+        logger.info("View: Left")
 
     def on_key_shift_5(self, event):
         """Set top view."""
         self.view_controller.set_top_view()
-        print("View: Top")
+        logger.info("View: Top")
 
     def on_key_shift_6(self, event):
         """Set bottom view."""
         self.view_controller.set_bottom_view()
-        print("View: Bottom")
+        logger.info("View: Bottom")
 
     def on_key_shift_7(self, event):
         """Set isometric view."""
         self.view_controller.set_isometric_view()
-        print("View: Isometric")
-
-    def on_key_o(self, event):
-        """Set origin to assembly center or reset if already set."""
-        from OCC.Core.gp import gp_Pnt
-
-        if self.selection_manager.assembly_origin is None:
-            # Calculate and set origin to assembly center
-            # We need access to parts_list - this will be passed through viewer
-            print("Press 'o' in selection mode after loading a model to set origin")
-        else:
-            # Reset origin
-            self.selection_manager.reset_assembly_origin()
+        logger.info("View: Isometric")

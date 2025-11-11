@@ -10,6 +10,8 @@ from OCC.Core.IFSelect import IFSelect_RetDone
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_SOLID, TopAbs_FACE
 
+from step_viewer.logger import logger
+
 
 class StepLoader:
     """Loads STEP files and extracts geometry."""
@@ -23,20 +25,20 @@ class StepLoader:
             The loaded shape or None if loading failed
         """
         if not Path(filename).exists():
-            print(f"Error: File '{filename}' not found.")
+            logger.error(f"File '{filename}' not found.")
             return None
 
         step_reader = STEPControl_Reader()
         status = step_reader.ReadFile(filename)
 
         if status != IFSelect_RetDone:
-            print(f"Error: Failed to read STEP file '{filename}'")
+            logger.error(f"Failed to read STEP file '{filename}'")
             return None
 
         step_reader.TransferRoots()
         shape = step_reader.OneShape()
 
-        print(f"Successfully loaded: {filename}")
+        logger.info(f"Successfully loaded: {filename}")
 
         # Report entities
         explorer_solid = TopExp_Explorer(shape, TopAbs_SOLID)
@@ -45,8 +47,8 @@ class StepLoader:
         explorer_face = TopExp_Explorer(shape, TopAbs_FACE)
         face_count = sum(1 for _ in iter(lambda: explorer_face.More() and not explorer_face.Next(), False))
 
-        print(f"  Solids: {solid_count}")
-        print(f"  Faces: {face_count}")
+        logger.info(f"  Solids: {solid_count}")
+        logger.info(f"  Faces: {face_count}")
 
         return shape
 

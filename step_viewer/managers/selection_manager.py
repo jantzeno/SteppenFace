@@ -18,6 +18,7 @@ import numpy as np
 
 from ..config import ViewerConfig
 from .color_manager import ColorManager
+from ..logger import logger
 
 
 class SelectionManager:
@@ -33,7 +34,6 @@ class SelectionManager:
         self.face_to_part_map: Dict[int, int] = {}  # Maps face hash to part index
         self.part_selected_faces: Dict[int, any] = {}  # Maps part index to selected face object
         self.selection_label = None
-        self.assembly_origin = None  # User-defined origin point (gp_Pnt) for inside/outside determination
         self.planar_alignment_manager = None  # Reference to planar alignment manager
 
     def set_selection_label(self, label):
@@ -43,16 +43,6 @@ class SelectionManager:
     def set_planar_alignment_manager(self, manager):
         """Set reference to planar alignment manager."""
         self.planar_alignment_manager = manager
-
-    def set_assembly_origin(self, point: gp_Pnt):
-        """Set the assembly origin point for face selection."""
-        self.assembly_origin = point
-        print(f"Assembly origin set to: ({point.X():.1f}, {point.Y():.1f}, {point.Z():.1f})")
-
-    def reset_assembly_origin(self):
-        """Reset assembly origin to use automatic calculation."""
-        self.assembly_origin = None
-        print("Assembly origin reset to automatic (assembly center)")
 
     def update_face_transformations(self):
         """Update transformations of all highlighted faces to match their parent parts."""
@@ -143,11 +133,11 @@ class SelectionManager:
             if self.selection_label:
                 self.selection_label.config(text=f"Selected: {count} face{'s' if count != 1 else ''}")
 
-            print(f"{action} face (total: {count})")
+            logger.info(f"{action} face (total: {count})")
             return True
 
         except Exception as e:
-            print(f"Error selecting face: {e}")
+            logger.error(f"Error selecting face: {e}")
             return False
 
     def clear_all(self, root):
@@ -173,7 +163,7 @@ class SelectionManager:
         if self.selection_label:
             self.selection_label.config(text="Selected: 0 faces")
 
-        print("Cleared all selections")
+        logger.info("Cleared all selections")
 
     def update_all_colors(self, root):
         """Update colors of all currently selected faces."""
@@ -199,9 +189,9 @@ class SelectionManager:
 
         fill_rgb, fill_name = self.color_manager.get_current_fill_color()
         outline_rgb, outline_name = self.color_manager.get_current_outline_color()
-        print(f"\nSelection colors updated:")
-        print(f"  Fill: {fill_name} RGB{fill_rgb}")
-        print(f"  Outline: {outline_name} RGB{outline_rgb}\n")
+        logger.info(f"\nSelection colors updated:")
+        logger.info(f"  Fill: {fill_name} RGB{fill_rgb}")
+        logger.info(f"  Outline: {outline_name} RGB{outline_rgb}\n")
 
     def get_selection_count(self) -> int:
         """Get number of currently selected faces."""
@@ -289,7 +279,7 @@ class SelectionManager:
             root: Tkinter root for UI updates
         """
         if not self.is_selection_mode:
-            print("Not in selection mode. Press 's' to enter selection mode first.")
+            logger.warning("Not in selection mode. Press 's' to enter selection mode first.")
             return
 
         # Clear existing selections first
@@ -297,13 +287,8 @@ class SelectionManager:
 
         selected_count = 0
 
-        # Use user-defined origin if set, otherwise calculate assembly center
-        if self.assembly_origin is not None:
-            assembly_origin = self.assembly_origin
-            print(f"Using user-defined origin: ({assembly_origin.X():.1f}, {assembly_origin.Y():.1f}, {assembly_origin.Z():.1f})")
-        else:
-            assembly_origin = self._calculate_assembly_center(parts_list)
-            print(f"Using calculated assembly center: ({assembly_origin.X():.1f}, {assembly_origin.Y():.1f}, {assembly_origin.Z():.1f})")
+        # Calculate assembly center for inside/outside determination
+        assembly_origin = self._calculate_assembly_center(parts_list)
 
         # Get all solids for occlusion checking (entire assembly)
         all_solids = [s for s, _, _ in parts_list]
@@ -328,7 +313,7 @@ class SelectionManager:
                 continue
 
             # Debug info
-            print(f"  Part {idx+1}: {len(face_areas)} faces, top 2 by area: {[f'{a:.2f}' for a, _ in face_areas[:2]]}")
+            logger.debug(f"  Part {idx+1}: {len(face_areas)} faces, top 2 by area: {[f'{a:.2f}' for a, _ in face_areas[:2]]}")
 
             # Check the two largest faces to determine which is external
             selected_face = None
@@ -382,21 +367,21 @@ class SelectionManager:
                     composite_score = clear_count * 1000 + outward_score * 100
 
                     face_candidates.append((face, area, clear_count, outward_score, composite_score, face_idx, debug_info))
-                    print(f"    Face #{face_idx+1}: area={area:.2f} clearness={clear_count} outward={outward_score:.2f} score={composite_score:.1f} {debug_info}")
+                    logger.debug(f"    Face #{face_idx+1}: area={area:.2f} clearness={clear_count} outward={outward_score:.2f} score={composite_score:.1f} {debug_info}")
                 else:
-                    print(f"    ✗ Skipped face #{face_idx+1}: area={area:.2f} (internal) {debug_info}")
+                    logger.debug(f"    ✗ Skipped face #{face_idx+1}: area={area:.2f} (internal) {debug_info}")
 
             # Select the face with best composite score
             if face_candidates:
                 # Sort by composite score (highest first)
                 face_candidates.sort(key=lambda x: x[4], reverse=True)
                 selected_face, selected_area, clearness, outward, score, selected_idx, selected_debug = face_candidates[0]
-                print(f"    ✓ Selected face #{selected_idx+1}: area={selected_area:.2f} clearness={clearness} outward={outward:.2f} {selected_debug}")
+                logger.debug(f"    ✓ Selected face #{selected_idx+1}: area={selected_area:.2f} clearness={clearness} outward={outward:.2f} {selected_debug}")
 
             # If neither of the two largest faces is external, fall back to largest
             if selected_face is None and face_areas:
                 selected_area, selected_face = face_areas[0]
-                print(f"    Fallback: selected largest face area={selected_area:.2f}")
+                logger.debug(f"    Fallback: selected largest face area={selected_area:.2f}")
 
             # Add the selected face to highlights
             if selected_face is not None:
@@ -446,7 +431,7 @@ class SelectionManager:
         if self.planar_alignment_manager:
             self.planar_alignment_manager.set_selected_faces(self.part_selected_faces)
 
-        print(f"Selected {count} largest external faces (one per part)")
+        logger.info(f"Selected {count} largest external faces (one per part)")
 
     def _calculate_assembly_center(self, parts_list: List[Tuple]) -> gp_Pnt:
         """Calculate the center point of the entire assembly."""

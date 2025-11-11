@@ -15,6 +15,7 @@ from .controllers import MouseController, KeyboardController
 from .loaders import StepLoader
 from .rendering import MaterialRenderer
 from .ui import ViewerUI
+from .logger import logger
 
 
 class StepViewer:
@@ -173,7 +174,7 @@ class StepViewer:
                     # Ray is parallel to Z=0 plane
                     return (px, py, 0.0)
         except Exception as e:
-            print(f"Warning: Could not convert screen coordinates: {e}")
+            logger.warning(f"Could not convert screen coordinates: {e}")
             return (0.0, 0.0, 0.0)
 
     def _on_left_press_wrapper(self, event):
@@ -258,8 +259,6 @@ class StepViewer:
         self.canvas.bind("<P>", lambda e: self.toggle_planar_alignment())
         self.canvas.bind("<l>", lambda e: self.select_largest_faces())
         self.canvas.bind("<L>", lambda e: self.select_largest_faces())
-        self.canvas.bind("<o>", lambda e: self.toggle_origin())
-        self.canvas.bind("<O>", lambda e: self.toggle_origin())
 
         # Bind view preset keys (Shift + number keys)
         self.canvas.bind("<exclam>", self.keyboard_controller.on_key_shift_1)  # Shift+1 = ! (Front)
@@ -291,7 +290,7 @@ class StepViewer:
                         self.display.View.MustBeResized()
                         self.display.View.Redraw()
                     except Exception as e:
-                        print(f"Warning: Could not resize view: {e}")
+                        logger.warning(f"Could not resize view: {e}")
                     finally:
                         resize_state['pending'] = False
 
@@ -306,7 +305,7 @@ class StepViewer:
         palette = self.config.PART_PALETTE.copy()
 
         if len(solids) == 0:
-            print("No individual solids found, displaying shape as single object")
+            logger.info("No individual solids found, displaying shape as single object")
             color = Quantity_Color(palette[0][0], palette[0][1], palette[0][2], Quantity_TOC_RGB)
             ais_shape = self.display.DisplayShape(self.shape, color=color, update=False)[0]
             MaterialRenderer.apply_matte_material(ais_shape, color)
@@ -320,7 +319,7 @@ class StepViewer:
                 MaterialRenderer.apply_matte_material(ais_shape, color)
                 self.parts_list.append((solid, (r, g, b), ais_shape))
 
-            print(f"Assigned colors to {len(solids)} solid(s)")
+            logger.info(f"Assigned colors to {len(solids)} solid(s)")
 
         self.display.Context.UpdateCurrentViewer()
         self.display.FitAll()
@@ -351,10 +350,10 @@ class StepViewer:
         render_params.NbMsaaSamples = self.config.MSAA_SAMPLES
 
         # Selection highlighting
-        print(f"\nApplying selection colors:")
-        print(f"  Fill: RGB{self.config.SELECTION_COLOR}")
-        print(f"  Outline: RGB{self.config.SELECTION_OUTLINE_COLOR}")
-        print(f"  Width: {self.config.SELECTION_OUTLINE_WIDTH}px\n")
+        logger.info(f"\nApplying selection colors:")
+        logger.info(f"  Fill: RGB{self.config.SELECTION_COLOR}")
+        logger.info(f"  Outline: RGB{self.config.SELECTION_OUTLINE_COLOR}")
+        logger.info(f"  Width: {self.config.SELECTION_OUTLINE_WIDTH}px\n")
 
         # Configure hover (disabled) and selection styles
         try:
@@ -374,9 +373,9 @@ class StepViewer:
             select_drawer.FaceBoundaryAspect().SetWidth(self.config.SELECTION_OUTLINE_WIDTH)
             select_drawer.FaceBoundaryAspect().SetTypeOfLine(Aspect_TypeOfLine.Aspect_TOL_SOLID)
 
-            print("Context-level selection styling applied successfully")
+            logger.info("Context-level selection styling applied successfully")
         except Exception as e:
-            print(f"Warning: Could not configure selection style: {e}")
+            logger.warning(f"Could not configure selection style: {e}")
 
         # Enable face selection for all parts
         for solid, color, ais_shape in self.parts_list:
@@ -392,9 +391,9 @@ class StepViewer:
             # Enable the view corner trihedron
             # Arguments: position (Aspect_TypeOfTriedronPosition), color (Quantity_Color), scale, asWireframe
             self.view.TriedronDisplay(Aspect_TOTP_RIGHT_LOWER, Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_RGB), 0.1, True)
-            print("XYZ axis widget added to view")
+            logger.info("XYZ axis widget added to view")
         except Exception as e:
-            print(f"Warning: Could not add XYZ axis widget: {e}")
+            logger.warning(f"Could not add XYZ axis widget: {e}")
 
     def _setup_explode_slider(self):
         """Setup the explode slider callback."""
@@ -476,7 +475,7 @@ class StepViewer:
         # Update tree item to show highlighted state
         self._update_tree_highlight_indicator(part_idx, True)
 
-        print(f"Highlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)")
+        logger.info(f"Highlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)")
 
     def _unhighlight_part(self, part_idx: int):
         """Remove highlight from a specific part."""
@@ -496,7 +495,7 @@ class StepViewer:
         # Update tree item to remove highlighted state
         self._update_tree_highlight_indicator(part_idx, False)
 
-        print(f"Unhighlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)")
+        logger.info(f"Unhighlighted Part {part_idx + 1} ({len(self.highlighted_parts)} selected)")
 
     def _clear_all_part_highlights(self):
         """Clear all part highlights."""
@@ -599,7 +598,7 @@ class StepViewer:
 
         if name:
             plate = self.plate_manager.add_plate(name)
-            print(f"Added new plate: {plate.name}")
+            logger.info(f"Added new plate: {plate.name}")
 
             # Update UI
             self.ui.update_plate_list(self.plate_manager)
@@ -636,7 +635,7 @@ class StepViewer:
             parent=self.root
         ):
             if self.plate_manager.remove_plate(plate.id):
-                print(f"Deleted plate: {plate.name}")
+                logger.info(f"Deleted plate: {plate.name}")
 
                 # Update UI
                 self.ui.update_plate_list(self.plate_manager)
@@ -683,7 +682,7 @@ class StepViewer:
 
         if new_name and new_name != plate.name:
             if self.plate_manager.rename_plate(plate.id, new_name):
-                print(f"Renamed plate '{plate.name}' to '{new_name}'")
+                logger.info(f"Renamed plate '{plate.name}' to '{new_name}'")
 
                 # Update UI
                 self.ui.update_plate_list(self.plate_manager)
@@ -737,14 +736,14 @@ class StepViewer:
             if plate_idx < len(self.plate_manager.plates):
                 self.exclusion_current_plate = self.plate_manager.plates[plate_idx]
                 self.ui.plate_widgets['draw_exclusion'].config(bg='#ff6600')  # Orange highlight
-                print(f"Exclusion draw mode ENABLED for '{self.exclusion_current_plate.name}'")
-                print("Click and drag on the plate to draw red exclusion zones")
+                logger.info(f"Exclusion draw mode ENABLED for '{self.exclusion_current_plate.name}'")
+                logger.info("Click and drag on the plate to draw red exclusion zones")
         else:
             self.ui.plate_widgets['draw_exclusion'].config(bg='#3a3b3f')  # Normal color
             self._clear_exclusion_preview()
             self.exclusion_current_plate = None
             self.exclusion_start_point = None
-            print("Exclusion draw mode DISABLED")
+            logger.info("Exclusion draw mode DISABLED")
 
         self.canvas.focus_set()
 
@@ -795,7 +794,7 @@ class StepViewer:
 
             # Now clear the zones from the plate
             plate.clear_exclusion_zones()
-            print(f"Cleared all exclusion zones from '{plate.name}'")
+            logger.info(f"Cleared all exclusion zones from '{plate.name}'")
 
         self.canvas.focus_set()
 
@@ -815,12 +814,12 @@ class StepViewer:
 
         # Check if click is within the selected plate
         if not self.exclusion_current_plate.contains_point(x, y):
-            print("Click is outside the selected plate")
+            logger.warning("Click is outside the selected plate")
             return True  # Consume the click but don't start drawing
 
         # Start drawing exclusion zone
         self.exclusion_start_point = (x, y)
-        print(f"Started exclusion zone at ({x:.1f}, {y:.1f})")
+        logger.info(f"Started exclusion zone at ({x:.1f}, {y:.1f})")
         return True
 
     def _handle_exclusion_zone_drag(self, x: float, y: float) -> bool:
@@ -871,7 +870,7 @@ class StepViewer:
 
             # Add exclusion zone
             zone = self.exclusion_current_plate.add_exclusion_zone(plate_x, plate_y, width, height)
-            print(f"Created exclusion zone {zone.id} on '{self.exclusion_current_plate.name}': "
+            logger.info(f"Created exclusion zone {zone.id} on '{self.exclusion_current_plate.name}': "
                   f"({width:.1f} x {height:.1f} mm)")
 
             # Update display
@@ -879,7 +878,7 @@ class StepViewer:
                 self.plate_manager.update_exclusion_zones(self.exclusion_current_plate.id, self.display)
                 self.display.Repaint()
         else:
-            print(f"Rectangle too small ({width:.1f} x {height:.1f} mm), minimum is 5x5mm")
+            logger.warning(f"Rectangle too small ({width:.1f} x {height:.1f} mm), minimum is 5x5mm")
 
         # Clear preview and reset start point for next zone
         self._clear_exclusion_preview()
@@ -956,45 +955,36 @@ class StepViewer:
 
     def _print_controls(self):
         """Print viewer controls to console."""
-        print("\n" + "="*60)
-        print("SELECTION COLORS CONFIGURATION:")
-        print(f"  Fill: RGB{self.config.SELECTION_COLOR}")
-        print(f"  Outline: RGB{self.config.SELECTION_OUTLINE_COLOR}")
-        print(f"  Outline width: {self.config.SELECTION_OUTLINE_WIDTH}px")
-        print("  (Edit ViewerConfig class to customize)")
-        print("="*60)
+        logger.info("\n" + "="*60)
+        logger.info("SELECTION COLORS CONFIGURATION:")
+        logger.info(f"  Fill: RGB{self.config.SELECTION_COLOR}")
+        logger.info(f"  Outline: RGB{self.config.SELECTION_OUTLINE_COLOR}")
+        logger.info(f"  Outline width: {self.config.SELECTION_OUTLINE_WIDTH}px")
+        logger.info("  (Edit ViewerConfig class to customize)")
+        logger.info("="*60)
 
-        print("\nViewer Controls:")
-        print("  - Left mouse button: Rotate")
-        print("  - Right mouse button: Pan")
-        print("  - Mouse wheel: Zoom")
-        print("  - 'f': Fit all")
-        print("  - 's': Toggle face selection mode")
-        print("  - 'l': Select largest external face per part")
-        print("  - 'c': Clear all selections")
-        print("  - 'd': Toggle duplicate parts visibility")
-        print("  - 'p': Toggle planar alignment (lay parts flat)")
-        print("  - '1': Cycle selection fill color (in selection mode)")
-        print("  - '2': Cycle outline color (in selection mode)")
-        print("  - Explode slider: Separate parts")
-        print("\nView Presets (Shift + number keys or click buttons):")
-        print("  - Shift+1 (!): Front view")
-        print("  - Shift+2 (@): Back view")
-        print("  - Shift+3 (#): Right view")
-        print("  - Shift+4 ($): Left view")
-        print("  - Shift+5 (%): Top view")
-        print("  - Shift+6 (^): Bottom view")
-        print("  - Shift+7 (&): Isometric view")
-        print("\nPlate Management:")
-        print("  - Add Plate: Create a new material plate")
-        print("  - Delete Plate: Remove selected plate (parts remain)")
-        print("  - Rename Plate: Give plates descriptive names")
-        print("  - Arrange Parts: Placeholder for auto-arrangement (future)")
-        print("  - Draw Exclusion: Click & drag to mark off-limits areas (red zones)")
-        print("  - Clear All: Remove all exclusion zones from selected plate")
-        print("  - Parts are auto-assigned to plates when planar view is enabled")
-        print("\nOther:")
-        print("  - 'q' or ESC: Quit")
+        logger.info("\nViewer Controls:")
+        logger.info("  - Left mouse button: Rotate")
+        logger.info("  - Right mouse button: Pan")
+        logger.info("  - Mouse wheel: Zoom")
+        logger.info("  - 'f': Fit all")
+        logger.info("  - 's': Toggle face selection mode")
+        logger.info("  - 'l': Select largest external face per part")
+        logger.info("  - 'c': Clear all selections")
+        logger.info("  - 'd': Toggle duplicate parts visibility")
+        logger.info("  - 'p': Toggle planar alignment (lay parts flat)")
+        logger.info("  - '1': Cycle selection fill color (in selection mode)")
+        logger.info("  - '2': Cycle outline color (in selection mode)")
+        logger.info("\nView Presets (Shift + number keys):")
+        logger.info("  - Shift+1 (!): Front view")
+        logger.info("  - Shift+2 (@): Back view")
+        logger.info("  - Shift+3 (#): Right view")
+        logger.info("  - Shift+4 ($): Left view")
+        logger.info("  - Shift+5 (%): Top view")
+        logger.info("  - Shift+6 (^): Bottom view")
+        logger.info("  - Shift+7 (&): Isometric view")
+        logger.info("\nOther:")
+        logger.info("  - 'q' or ESC: Quit")
 
     def _final_update(self):
         """Final update after UI is fully initialized."""
@@ -1005,7 +995,7 @@ class StepViewer:
             self.display.Repaint()
             self.resize_state['initialized'] = True
         except Exception as e:
-            print(f"Warning: Could not perform final update: {e}")
+            logger.warning(f"Could not perform final update: {e}")
 
     def toggle_duplicate_visibility(self):
         """Toggle visibility of duplicate parts."""
@@ -1018,7 +1008,7 @@ class StepViewer:
             # Show all parts
             for solid, color, ais_shape in self.parts_list:
                 self.display.Context.Display(ais_shape, False)
-            print("Showing all parts (including duplicates)")
+            logger.info("Showing all parts (including duplicates)")
 
             # Restore hidden selections
             if self.hidden_selections:
@@ -1051,7 +1041,7 @@ class StepViewer:
             for solid, color, ais_shape in unique_parts:
                 self.display.Context.Display(ais_shape, False)
 
-            print("Showing only unique parts (duplicates hidden)")
+            logger.info("Showing only unique parts (duplicates hidden)")
 
             # Update parts tree to show hidden status
             self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
@@ -1110,25 +1100,10 @@ class StepViewer:
             # Update plate list UI
             self.ui.update_plate_list(self.plate_manager)
 
-            print("Planar alignment enabled - parts laid flat")
-            print(f"Parts automatically associated with {self.plate_manager.get_plate_count()} plate(s)")
+            logger.info("Planar alignment enabled - parts laid flat")
+            logger.info(f"Parts automatically associated with {self.plate_manager.get_plate_count()} plate(s)")
         else:
-            print("Planar alignment disabled - parts restored")
-
-    def toggle_origin(self):
-        """Reset assembly origin or set it manually (future: click to set)."""
-        if not hasattr(self, 'parts_list') or not self.parts_list:
-            print("No model loaded. Load a STEP file first.")
-            return
-
-        if self.selection_manager.assembly_origin is None:
-            print("Origin control: Currently using automatic assembly center.")
-            print("Future feature: Click-to-set manual origin point.")
-            print("For now, the assembly center is calculated automatically during face selection.")
-        else:
-            # Reset manual origin
-            self.selection_manager.reset_assembly_origin()
-            print("Manual origin reset. Now using automatic assembly center.")
+            logger.info("Planar alignment disabled - parts restored")
 
     def select_largest_faces(self):
         """Select the largest external face of each part."""
