@@ -8,5 +8,6 @@ from .planar_alignment_manager import PlanarAlignmentManager
 from .plate_manager import PlateManager
 from .selection_manager import SelectionManager
 from .ui_manager import UIManager
+from .view_helper import ViewHelper
 
-__all__ = ['CanvasManager', 'ColorManager', 'DeduplicationManager', 'EventManager', 'ExplodeManager', 'logger', 'PlanarAlignmentManager', 'PlateManager', 'SelectionManager', 'UIManager']
+__all__ = ['CanvasManager', 'ViewHelper', 'ColorManager', 'DeduplicationManager', 'EventManager', 'ExplodeManager', 'logger', 'PlanarAlignmentManager', 'PlateManager', 'SelectionManager', 'UIManager']

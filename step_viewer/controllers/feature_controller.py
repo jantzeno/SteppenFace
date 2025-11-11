@@ -5,6 +5,7 @@ Feature controller for managing viewer features like duplicate visibility and pl
 import tkinter as tk
 from typing import List, Tuple, Dict
 from ..managers.log_manager import logger
+from ..managers.view_helper import ViewHelper
 
 class FeatureController:
     """Manages feature toggles like duplicate visibility, planar alignment, and face selection."""
@@ -23,6 +24,7 @@ class FeatureController:
         self.selection_manager = selection_manager
         self.tree_controller = tree_controller
         self.hidden_selections: Dict = {}
+        self.view_helper = ViewHelper(display.View)
 
     def toggle_duplicate_visibility(self):
         """Toggle visibility of duplicate parts."""
@@ -126,10 +128,12 @@ class FeatureController:
 
             # Update plate list UI
             self.ui.update_plate_list(self.plate_manager)
+            self.view_helper.set_top_view()
 
             logger.info("Planar alignment enabled - parts laid flat")
             logger.info(f"Parts automatically associated with {self.plate_manager.get_plate_count()} plate(s)")
         else:
+            self.view_helper.set_isometric_view()
             logger.info("Planar alignment disabled - parts restored")
 
     def select_largest_faces(self):

@@ -11,7 +11,6 @@ from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine, Aspect_TOTP_RIGHT
 
 from ..config import ViewerConfig
 from ..loaders import StepLoader
-from ..controllers.material_renderer import MaterialRenderer
 from .log_manager import logger
 
 
@@ -59,6 +58,8 @@ class CanvasManager:
         Returns:
             List of (solid, color_tuple, ais_shape) tuples
         """
+        from ..controllers.material_renderer import MaterialRenderer
+
         solids = StepLoader.extract_solids(shape)
         palette = self.config.PART_PALETTE.copy()
         parts_list = []
@@ -182,5 +183,3 @@ class CanvasManager:
             self.resize_state['initialized'] = True
         except Exception as e:
             logger.warning(f"Could not perform final update: {e}")
-
-
