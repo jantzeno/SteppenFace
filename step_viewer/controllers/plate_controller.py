@@ -231,7 +231,7 @@ class PlateController:
 
             # Update display if in planar view
             if self.planar_alignment_manager.is_aligned:
-                self.plate_manager.update_plate_geometry(plate, self.display)
+                self.plate_manager.update_single_plate(plate, self.display)
                 self.display.Repaint()
 
             # Update UI
@@ -268,6 +268,8 @@ class PlateController:
             self.arrangement_manager.set_spacing(dialog.spacing)
             self.arrangement_manager.set_margin(dialog.margin)
             self.arrangement_manager.set_rotation_enabled(dialog.allow_rotation)
+            self.arrangement_manager.set_packing_mode(dialog.packing_mode)
+            self.arrangement_manager.set_nfp_quality(dialog.nfp_quality)
             # self.arrangement_manager.set_packing_strategy(dialog.strategy)  # Commented out - using best_fit only
 
             # Perform arrangement
@@ -327,10 +329,12 @@ class ArrangementSettingsDialog:
         self.spacing = arrangement_manager.spacing_mm
         self.margin = arrangement_manager.margin_mm
         self.allow_rotation = arrangement_manager.allow_rotation
+        self.packing_mode = arrangement_manager.packing_mode
+        self.nfp_quality = arrangement_manager.nfp_quality
 
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Arrangement Settings")
-        self.dialog.geometry("350x260")
+        self.dialog.geometry("350x400")  # Increased height for new options
         self.dialog.resizable(False, False)
         self.dialog.configure(bg="#1a1b1f")
 
@@ -427,6 +431,82 @@ class ArrangementSettingsDialog:
             font=("Arial", 10),
         ).pack(side="left")
 
+        # Packing mode setting
+        self.mode_frame = tk.Frame(self.dialog, bg="#1a1b1f")
+        self.mode_frame.pack(pady=10, padx=20, fill="x")
+
+        tk.Label(
+            self.mode_frame,
+            text="Packing Mode:",
+            bg="#1a1b1f",
+            fg="white",
+            font=("Arial", 10),
+        ).pack(side="left")
+
+        self.mode_var = tk.StringVar(value=self.packing_mode)
+
+        mode_rect = tk.Radiobutton(
+            self.mode_frame,
+            text="Rectangle",
+            variable=self.mode_var,
+            value="rectangle",
+            bg="#1a1b1f",
+            fg="white",
+            selectcolor="#3a3b3f",
+            activebackground="#1a1b1f",
+            activeforeground="white",
+            font=("Arial", 9),
+            command=self._on_mode_change,
+        )
+        mode_rect.pack(side="left", padx=5)
+
+        mode_nfp = tk.Radiobutton(
+            self.mode_frame,
+            text="NFP (Smart)",
+            variable=self.mode_var,
+            value="nfp",
+            bg="#1a1b1f",
+            fg="white",
+            selectcolor="#3a3b3f",
+            activebackground="#1a1b1f",
+            activeforeground="white",
+            font=("Arial", 9),
+            command=self._on_mode_change,
+        )
+        mode_nfp.pack(side="left", padx=5)
+
+        # NFP quality setting (only shown when NFP mode is active)
+        self.quality_frame = tk.Frame(self.dialog, bg="#1a1b1f")
+        self.quality_frame.pack(pady=10, padx=20, fill="x")
+
+        tk.Label(
+            self.quality_frame,
+            text="NFP Quality:",
+            bg="#1a1b1f",
+            fg="white",
+            font=("Arial", 10),
+        ).pack(side="left")
+
+        self.quality_var = tk.StringVar(value=self.nfp_quality)
+
+        for quality in ["fast", "medium", "high"]:
+            tk.Radiobutton(
+                self.quality_frame,
+                text=quality.capitalize(),
+                variable=self.quality_var,
+                value=quality,
+                bg="#1a1b1f",
+                fg="white",
+                selectcolor="#3a3b3f",
+                activebackground="#1a1b1f",
+                activeforeground="white",
+                font=("Arial", 9),
+            ).pack(side="left", padx=5)
+
+        # Initially hide quality frame if rectangle mode
+        if self.packing_mode != "nfp":
+            self.quality_frame.pack_forget()
+
         # Strategy setting (commented out - only best_fit currently available)
         # strategy_frame = tk.Frame(self.dialog, bg='#1a1b1f')
         # strategy_frame.pack(pady=10, padx=20, fill='x')
@@ -501,11 +581,24 @@ class ArrangementSettingsDialog:
             cursor="hand2",
         ).pack(side="left", padx=5)
 
+    def _on_mode_change(self):
+        """Handle packing mode change."""
+        mode = self.mode_var.get()
+
+        # Show/hide quality options based on mode
+        if mode == "nfp":
+            # Repack the quality frame in the correct position
+            self.quality_frame.pack(pady=10, padx=20, fill="x", after=self.mode_frame)
+        else:
+            self.quality_frame.pack_forget()
+
     def _on_ok(self):
         """Handle OK button click."""
         self.spacing = self.spacing_var.get()
         self.margin = self.margin_var.get()
         self.allow_rotation = self.rotation_var.get()
+        self.packing_mode = self.mode_var.get()
+        self.nfp_quality = self.quality_var.get()
         # self.strategy = self.strategy_var.get()  # Commented out - using best_fit only
         self.result = True
         self.dialog.destroy()

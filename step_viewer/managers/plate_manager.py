@@ -388,24 +388,53 @@ class PlateManager:
             display: The OCC display context
         """
         for plate in self.plates:
-            # Clear old geometry
-            if plate.ais_shape is not None:
-                display.Context.Erase(plate.ais_shape, False)
-                plate.ais_shape = None
-
-            # Hide old exclusion zones
-            self._hide_exclusion_zones(plate, display)
-
-            # Create new geometry
-            self._create_plate_geometry(plate)
-
-            if plate.ais_shape is not None:
-                display.Context.Display(plate.ais_shape, False)
-
-            # Show updated exclusion zones
-            self._show_exclusion_zones(plate, display)
+            self.update_single_plate(plate, display)
 
         display.Context.UpdateCurrentViewer()
+
+    def update_single_plate(self, plate, display):
+        """
+        Update a specific plate geometry and exclusion zones.
+
+        Args:
+            display: The OCC display context.
+            plate: The Plate object to be updated.
+        """
+        # Clear old geometry
+        if plate.ais_shape is not None:
+            display.Context.Erase(plate.ais_shape, False)
+            plate.ais_shape = None
+
+        # Hide old exclusion zones
+        self._hide_exclusion_zones(plate, display)
+
+        # Create new geometry
+        self._create_plate_geometry(plate)
+
+        if plate.ais_shape is not None:
+            display.Context.Display(plate.ais_shape, False)
+
+        # Show updated exclusion zones
+        self._show_exclusion_zones(plate, display)
+
+    def _style_plate(self, plate):
+        """
+        Apply style to a plate's AIS_Shape.
+
+        Args:
+            plate: The Plate to style.
+        """
+        # Style the plate - semi-transparent gray with slight color variation
+        base_intensity = 0.25 + (plate.id % 3) * 0.05
+        plate_color = Quantity_Color(
+            base_intensity, base_intensity, base_intensity + 0.05, Quantity_TOC_RGB
+        )
+        plate.ais_shape.SetColor(plate_color)
+        plate.ais_shape.SetTransparency(0.7)  # Semi-transparent
+
+        # Set material to make it look like a flat surface
+        material = Graphic3d_MaterialAspect(Graphic3d_NOM_PLASTIC)
+        plate.ais_shape.SetMaterial(material)
 
     def _create_plate_geometry(self, plate: Plate):
         """
@@ -437,18 +466,8 @@ class PlateManager:
         # Create AIS_Shape for visualization
         plate.ais_shape = AIS_Shape(plate_face)
 
-        # Style the plate - semi-transparent gray with slight color variation
-        # Use different shades for different plates
-        base_intensity = 0.25 + (plate.id % 3) * 0.05
-        plate_color = Quantity_Color(
-            base_intensity, base_intensity, base_intensity + 0.05, Quantity_TOC_RGB
-        )
-        plate.ais_shape.SetColor(plate_color)
-        plate.ais_shape.SetTransparency(0.7)  # Semi-transparent
-
-        # Set material to make it look like a flat surface
-        material = Graphic3d_MaterialAspect(Graphic3d_NOM_PLASTIC)
-        plate.ais_shape.SetMaterial(material)
+        # Apply styling to the plate
+        self._style_plate(plate)
 
     def get_total_grid_bounds(self) -> Tuple[float, float, float, float]:
         """
