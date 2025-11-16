@@ -10,7 +10,7 @@ import math
 from OCC.Core.gp import gp_Trsf, gp_Vec, gp_Pnt
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
-from step_viewer.geometry.nfp_geometry import Polygon2D
+from step_viewer.managers.part_helper import Part
 
 from .log_manager import logger
 from ..config import ViewerConfig
@@ -66,6 +66,7 @@ class PlateArrangementManager:
         self.spacing_mm = ViewerConfig.DEFAULT_PART_SPACING_MM
         self.margin_mm = ViewerConfig.DEFAULT_PLATE_MARGIN_MM
         self.allow_rotation = ViewerConfig.DEFAULT_ALLOW_ROTATION
+        self.last_packing_results: List[PackingResult] = []
         self.packing_mode = "rectangle"
         self.nfp_quality = "medium"
 
@@ -143,9 +144,13 @@ class PlateArrangementManager:
             logger.warning(
                 f"Unknown nfp quality '{quality}', keeping '{self.nfp_quality}'"
             )
+
+    @property
+    def get_last_packing_results(self):
+        return self.last_packing_results
     
     def arrange_parts_on_plates(
-        self, parts_list: List, display=None
+        self, parts_list: List[Part], display=None
     ) -> List[PackingResult]:
         """
         Arrange all parts on plates using bin packing algorithm.
@@ -166,12 +171,6 @@ class PlateArrangementManager:
         logger.info(
             f"Settings: spacing={self.spacing_mm}mm, rotation={'enabled' if self.allow_rotation else 'disabled'}"
         )
-
-        # Temporarily enable debug logging for arrangement
-        import logging
-
-        old_level = logger.level
-        logger.setLevel(logging.DEBUG)
 
         # Extract part bounding boxes
         rectangles = self._extract_part_rectangles(parts_list, display)
@@ -220,7 +219,7 @@ class PlateArrangementManager:
             plate.part_indices.clear()
 
         # Pack parts onto plates
-        packing_results = []
+        packing_results: List[PackingResult] = []
 
         for idx, rect in enumerate(rectangles):
             placed = False
@@ -305,21 +304,13 @@ class PlateArrangementManager:
             f"Arrangement complete: {len(packing_results)} parts placed on {len(self.plate_manager.plates)} plate(s)"
         )
 
-        # Log statistics per plate
-        for plate in self.plate_manager.plates:
-            if plate.part_indices:
-                utilization = self._calculate_plate_utilization(plate, packing_results)
-                logger.info(
-                    f"  {plate.name}: {len(plate.part_indices)} parts, {utilization:.1f}% utilization"
-                )
-
-        # Restore logger level
-        logger.setLevel(old_level)
+        if bool(packing_results):
+            self.last_packing_results = packing_results
 
         return packing_results
 
     def _extract_part_rectangles(
-        self, parts_list: List, display=None
+        self, parts_list: List[Part], display=None
     ) -> List[Rectangle]:
         """
         Extract 2D bounding rectangles from parts in their current orientation.
@@ -394,142 +385,6 @@ class PlateArrangementManager:
                 continue
 
         return rectangles
-    
-    def _extract_part_polygons(self, parts_list: List, display=None) -> List[Tuple[Polygon2D, int]]:
-        """
-        Extract 2D polygons from parts for NFP-based packing.
-
-        Args:
-            parts_list: List of (solid, color, ais_shape) tuples
-            display: Optional display context for getting transformations
-
-        Returns:
-            List of (Polygon2D, part_index) tuples
-        """
-        polygons = []
-        tolerance_map = {
-            "fast": 2.0,
-            "medium": 0.5,
-            "high": 0.1,
-        }
-        tolerance = tolerance_map.get(self.nfp_quality, 0.5)
-
-        for part_idx, (solid, color, ais_shape) in enumerate(parts_list):
-            try:
-                logger.info(f"Part {part_idx}: Extracting vertices and projecting to XY plane...")
-
-                from OCC.Core.TopExp import TopExp_Explorer
-                from OCC.Core.TopAbs import TopAbs_VERTEX
-                from OCC.Core.TopoDS import topods
-                from OCC.Core.BRep import BRep_Tool
-
-                # Collect all vertices from the solid
-                vertices_3d = []
-                vertex_explorer = TopExp_Explorer(solid, TopAbs_VERTEX)
-
-                while vertex_explorer.More():
-                    vertex = topods.Vertex(vertex_explorer.Current())
-                    pnt = BRep_Tool.Pnt(vertex)
-                    vertices_3d.append((pnt.X(), pnt.Y(), pnt.Z()))
-                    vertex_explorer.Next()
-
-                logger.debug(f"Part {part_idx}: Found {len(vertices_3d)} vertices in solid")
-
-                if len(vertices_3d) < 3:
-                    logger.warning(f"Part {part_idx}: Insufficient vertices ({len(vertices_3d)})")
-                    polygon = None
-                else:
-                    # Project all vertices onto XY plane (drop Z coordinate)
-                    points_2d = [Point2D(x, y) for x, y, z in vertices_3d]
-
-                    # Remove duplicate points (tolerance 0.01mm)
-                    unique_points = []
-                    tolerance = 0.01
-                    for pt in points_2d:
-                        is_duplicate = False
-                        for existing in unique_points:
-                            if abs(pt.x - existing.x) < tolerance and abs(pt.y - existing.y) < tolerance:
-                                is_duplicate = True
-                                break
-                        if not is_duplicate:
-                            unique_points.append(pt)
-
-                    logger.debug(f"Part {part_idx}: After removing duplicates: {len(unique_points)} unique 2D points")
-
-                    if len(unique_points) < 3:
-                        logger.warning(f"Part {part_idx}: Insufficient unique points ({len(unique_points)})")
-                        polygon = None
-                    else:
-                        # Compute convex hull using Graham scan algorithm
-                        try:
-                            hull_points = self._compute_convex_hull(unique_points)
-                            if hull_points and len(hull_points) >= 3:
-                                polygon = Polygon2D(hull_points, [])
-                                logger.info(f"Part {part_idx}: Created convex hull with {len(hull_points)} vertices")
-                            else:
-                                logger.warning(f"Part {part_idx}: Convex hull failed")
-                                polygon = None
-                        except Exception as e:
-                            logger.error(f"Part {part_idx}: Error computing convex hull: {e}")
-                            polygon = None
-
-                if not polygon:
-                    try:
-                        from OCC.Core.TopExp import TopExp_Explorer
-                        from OCC.Core.TopAbs import TopAbs_FACE
-                        from OCC.Core.BRepGProp import brepgprop
-                        from OCC.Core.GProp import GProp_GProps
-
-                        face_explorer = TopExp_Explorer(solid, TopAbs_FACE)
-                        best_face = None
-                        best_score = -999999.0
-
-                        while face_explorer.More():
-                            face = topods.Face(face_explorer.Current())
-                            try:
-                                props = GProp_GProps()
-                                brepgprop.SurfaceProperties(face, props)
-                                area = props.Mass()
-
-                                centroid = props.CentreOfMass()
-                                z_height = centroid.Z()
-
-                                bbox = Bnd_Box()
-                                brepbndlib.Add(face, bbox)
-                                xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
-
-                                # Score based on area and Z height
-                                score = area * (1.0 + (z_height - zmin) / (zmax - zmin + 0.001))
-                                if score > best_score:
-                                    best_score = score
-                                    best_face = face
-
-                            except Exception as e:
-                                logger.debug(f"Part {part_idx}: Error processing face: {e}")
-                            face_explorer.Next()
-
-                        if best_face:
-                            polygon = PolygonExtractor.extract_from_face(best_face, deflection=0.5)
-                            if polygon:
-                                # Simplify based on quality setting
-                                if tolerance > 0:
-                                    polygon = PolygonExtractor.simplify_polygon(polygon, tolerance)
-
-                                # Normalize polygon to origin (move bbox min to 0,0)
-                                bbox = polygon.bounding_box()
-                                if bbox[0] != 0 or bbox[1] != 0:
-                                    offset = Point2D(-bbox[0], -bbox[1])
-                                    polygon = polygon.translate(offset)
-
-                            polygons.append((polygon, part_idx))
-
-                    except Exception as e:
-                        logger.error(f"Part {part_idx}: Error in face-based extraction: {e}")
-
-            except Exception as e:
-                logger.error(f"Part {part_idx}: Error extracting polygon: {e}")
-
-        return polygons
 
     def _find_placement_on_plate(
         self, rect: Rectangle, plate, existing_placements: List[PackingResult]

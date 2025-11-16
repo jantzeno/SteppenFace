@@ -5,6 +5,7 @@ Display manager for initializing and configuring the 3D display.
 import tkinter as tk
 import random
 from typing import List, Tuple, Any
+from .part_helper import Part
 
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRGB
 from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine, Aspect_TOTP_RIGHT_LOWER
@@ -70,7 +71,7 @@ class CanvasManager:
 
         solids = StepLoader.extract_solids(shape)
         palette = self.config.PART_PALETTE.copy()
-        parts_list = []
+        parts_list: List[Part] = []
 
         if len(solids) == 0:
             logger.info("No individual solids found, displaying shape as single object")
@@ -79,7 +80,12 @@ class CanvasManager:
             )
             ais_shape = self.display.DisplayShape(shape, color=color, update=False)[0]
             MaterialRenderer.apply_matte_material(ais_shape, color)
-            parts_list.append((shape, palette[0], ais_shape))
+            parts_list.append(
+                Part(
+                shape=shape, 
+                pallete=palette[0],
+                ais_shape=ais_shape)
+                )
         else:
             random.shuffle(palette)
             for i, solid in enumerate(solids):
@@ -89,7 +95,11 @@ class CanvasManager:
                     0
                 ]
                 MaterialRenderer.apply_matte_material(ais_shape, color)
-                parts_list.append((solid, (r, g, b), ais_shape))
+                parts_list.append(
+                    Part(
+                        shape=solid, 
+                        pallete=(r, g, b), 
+                        ais_shape=ais_shape))
 
             logger.info(f"Assigned colors to {len(solids)} solid(s)")
 
@@ -103,12 +113,12 @@ class CanvasManager:
 
         return parts_list
 
-    def configure_display(self, parts_list: List[Tuple], color_manager):
+    def configure_display(self, parts_list: List[Part], color_manager):
         """
         Configure display settings (background, antialiasing, selection).
 
         Args:
-            parts_list: List of (solid, color, ais_shape) tuples
+            parts_list: Part of (solid, color, ais_shape)
             color_manager: Manager for color configuration
         """
         # Background color

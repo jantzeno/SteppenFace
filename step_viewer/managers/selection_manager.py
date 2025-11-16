@@ -7,12 +7,13 @@ from typing import Dict, List, Tuple
 from OCC.Core.AIS import AIS_Shape
 from OCC.Core.Aspect import Aspect_TypeOfLine
 from OCC.Core.TopExp import TopExp_Explorer
-from OCC.Core.TopAbs import TopAbs_FACE
+from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_WIRE, TopAbs_EDGE
 from OCC.Core.GProp import GProp_GProps
 from OCC.Core.BRepGProp import brepgprop
 from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
 from OCC.Core.gp import gp_Pnt, gp_Vec, gp_Dir, gp_Lin, gp_Ax1, gp_Trsf
 from OCC.Core.BRepIntCurveSurface import BRepIntCurveSurface_Inter
+import hashlib
 
 from ..config import ViewerConfig
 from .color_manager import ColorManager
@@ -31,6 +32,10 @@ class SelectionManager:
         self.face_parent_map: Dict[int, AIS_Shape] = (
             {}
         )  # Maps face hash to parent AIS_Shape
+        # Map highlighted face hash to the original TopoDS_Face object
+        self.face_to_faceobj_map: Dict[int, object] = {}
+        # Stable 64-bit fingerprint (decimal string) for each face hash
+        self.face_fingerprint_map: Dict[int, str] = {}
         self.face_to_part_map: Dict[int, int] = {}  # Maps face hash to part index
         self.part_selected_faces: Dict[int, any] = (
             {}
@@ -136,6 +141,15 @@ class SelectionManager:
                 self.highlighted_faces[face_hash] = ais_highlight
                 action = "Selected"
 
+                # Keep mapping to the concrete face object and a stable fingerprint
+                try:
+                    self.face_to_faceobj_map[face_hash] = detected_shape
+                    fp = self._face_fingerprint(detected_shape)
+                    self.face_fingerprint_map[face_hash] = fp
+                    logger.debug(f"    selection fingerprint={fp}")
+                except Exception:
+                    pass
+
             self.display.Context.UpdateCurrentViewer()
             self.display.Repaint()
             root.update_idletasks()
@@ -161,6 +175,8 @@ class SelectionManager:
 
         self.highlighted_faces.clear()
         self.face_parent_map.clear()
+        self.face_to_faceobj_map.clear()
+        self.face_fingerprint_map.clear()
         self.face_to_part_map.clear()
         self.part_selected_faces.clear()
 
@@ -319,6 +335,41 @@ class SelectionManager:
         # Get all solids for occlusion checking (entire assembly)
         all_solids = [s for s, _, _ in parts_list]
 
+        # Build a global face index map (1-based) across the provided parts_list
+        # so we can report a global STEP-style face number that matches a full
+        # dump of the assembly's faces. We map by the Python hash of the face
+        # object (stable within this run) to its global index.
+        global_face_map = {}
+        global_idx = 1
+        for s, _, _ in parts_list:
+            exp_g = TopExp_Explorer(s, TopAbs_FACE)
+            while exp_g.More():
+                f = exp_g.Current()
+                try:
+                    global_face_map[f.__hash__()] = global_idx
+                except Exception:
+                    global_face_map[id(f)] = global_idx
+                global_idx += 1
+                exp_g.Next()
+
+        # Build a global face index map (1-based) across the provided parts_list
+        # so we can report a global STEP-style face number that matches a full
+        # dump of the assembly's faces. We map by the Python hash of the face
+        # object (stable within this run) to its global index.
+        global_face_map = {}
+        global_idx = 1
+        for s, _, _ in parts_list:
+            exp_g = TopExp_Explorer(s, TopAbs_FACE)
+            while exp_g.More():
+                f = exp_g.Current()
+                try:
+                    global_face_map[f.__hash__()] = global_idx
+                except Exception:
+                    # fallback to using id() if __hash__ fails
+                    global_face_map[id(f)] = global_idx
+                global_idx += 1
+                exp_g.Next()
+
         for idx, (solid, color, ais_shape) in enumerate(parts_list):
             # Find all faces and their areas
             face_areas = []
@@ -447,6 +498,45 @@ class SelectionManager:
 
             # Add the selected face to highlights
             if selected_face is not None:
+                # Determine the face index in the STEP/solids ordering for debug
+                try:
+                    # per-solid index (1-based)
+                    step_face_number = None
+                    explorer_num = TopExp_Explorer(solid, TopAbs_FACE)
+                    num = 0
+                    while explorer_num.More():
+                        num += 1
+                        if explorer_num.Current().IsSame(selected_face):
+                            step_face_number = num
+                            break
+                        explorer_num.Next()
+                except Exception:
+                    step_face_number = None
+
+                try:
+                    try:
+                        face_hash = selected_face.__hash__()
+                    except Exception:
+                        face_hash = id(selected_face)
+                    global_face_number = global_face_map.get(face_hash, None)
+                except Exception:
+                    face_hash = None
+                    global_face_number = None
+
+                logger.info(
+                    f"    -> Selected STEP face number (per-part): {step_face_number} (part index {idx}), global: {global_face_number}, face_hash: {face_hash}"
+                )
+                # Compute a stable fingerprint for cross-run correlation and store mapping
+                try:
+                    fp = self._face_fingerprint(selected_face)
+                    try:
+                        self.face_fingerprint_map[face_hash] = fp
+                        self.face_to_faceobj_map[face_hash] = selected_face
+                    except Exception:
+                        pass
+                    logger.info(f"        fingerprint={fp}")
+                except Exception:
+                    fp = None
                 face_hash = selected_face.__hash__()
 
                 # Only add if not already selected
@@ -524,6 +614,47 @@ class SelectionManager:
         if count > 0:
             return gp_Pnt(total_x / count, total_y / count, total_z / count)
         return gp_Pnt(0, 0, 0)
+
+    def _face_fingerprint(self, face) -> str:
+        """Compute a stable 64-bit fingerprint for a face.
+
+        The fingerprint is derived from: area, centroid coordinates, number of
+        wires and edges. The data is hashed with SHA1 and the first 8 bytes
+        are interpreted as an unsigned 64-bit integer and returned as a
+        decimal string. This is stable across runs (given the same geometry)
+        and suitable for correlating dumps and runtime selections.
+        """
+        try:
+            props = GProp_GProps()
+            brepgprop.SurfaceProperties(face, props)
+            area = float(props.Mass())
+            c = props.CentreOfMass()
+            cx, cy, cz = float(c.X()), float(c.Y()), float(c.Z())
+
+            # count wires and edges
+            wires = 0
+            edges = 0
+            wexp = TopExp_Explorer(face, TopAbs_WIRE)
+            while wexp.More():
+                wires += 1
+                eexp = TopExp_Explorer(wexp.Current(), TopAbs_EDGE)
+                while eexp.More():
+                    edges += 1
+                    eexp.Next()
+                wexp.Next()
+
+            # Bundle into a deterministic byte string
+            s = f"area={area:.6f};centroid={cx:.6f},{cy:.6f},{cz:.6f};wires={wires};edges={edges}"
+            h = hashlib.sha1(s.encode("utf8")).digest()[:8]
+            # unsigned 64-bit integer
+            val = int.from_bytes(h, byteorder="big", signed=False)
+            return str(val)
+        except Exception:
+            # Fallback to Python hash string (not stable across runs)
+            try:
+                return str(face.__hash__())
+            except Exception:
+                return str(id(face))
 
     def _is_face_external_to_assembly(self, face, all_solids: List):
         """

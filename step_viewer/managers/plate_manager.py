@@ -14,7 +14,6 @@ from OCC.Core.AIS import AIS_Shape
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
 
-
 @dataclass
 class ExclusionZone:
     """Represents a rectangular exclusion zone on a plate where parts cannot be placed."""
@@ -316,7 +315,7 @@ class PlateManager:
                 if not assigned and len(self.plates) > 0:
                     self.plates[0].part_indices.add(part_idx)
 
-    def get_parts_for_plate(self, plate_id: int) -> Set[int]:
+    def get_part_idxs_for_plate(self, plate_id: int) -> Set[int]:
         """
         Get the set of part indices associated with a plate.
 

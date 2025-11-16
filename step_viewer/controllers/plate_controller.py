@@ -4,6 +4,8 @@ Plate controller for managing plates and part arrangement.
 
 import tkinter as tk
 from tkinter import simpledialog, messagebox
+from typing import List
+from ..managers.part_helper import Part, get_largest_xy_plane_face
 from ..managers.log_manager import logger
 from ..managers.plate_arrangement_manager import PlateArrangementManager
 from ..managers.units_manager import UnitSystem
@@ -32,7 +34,7 @@ class PlateController:
         self.selection_manager = selection_manager
         self.units_manager = units_manager
         self.arrangement_manager = PlateArrangementManager(plate_manager)
-        self.parts_list = None  # Will be set from outside
+        self.parts_list: List[Part] = []
 
     def setup_controls(self):
         """Setup plate management button callbacks."""
@@ -182,6 +184,15 @@ class PlateController:
         """
         self.parts_list = parts_list
 
+    def get_parts_list(self):
+        """
+        Get the parts list.
+
+        Args:
+            parts_list: List of (solid, color, ais_shape) tuples
+        """
+        return self.parts_list
+
     def edit_plate_dimensions(self):
         """Edit dimensions of the selected plate."""
         if not self.units_manager:
@@ -284,6 +295,18 @@ class PlateController:
                     self.arrangement_manager.apply_arrangement(
                         self.parts_list, packing_results, self.display
                     )
+
+                    # Debug: log parts per plate
+                    plate_parts = {}
+
+                    for part in packing_results:
+                        # Ensure we start with a list containing the current part index
+                        plate_parts.setdefault(part.plate_id, []).append(part.part_idx)
+
+                    for plate, idx_list in plate_parts.items():
+                        logger.info(f"Parts for plate '{plate}'")
+                        logger.info(idx_list)
+                    # End debug
 
                     # Update selected faces to move with their parts
                     if self.selection_manager:

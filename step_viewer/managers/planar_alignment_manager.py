@@ -13,18 +13,18 @@ from OCC.Core.TopAbs import TopAbs_FACE
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
 from OCC.Core.GeomAbs import GeomAbs_Plane
-
-from .log_manager import logger
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 
+from .log_manager import logger
+from .part_helper import Part
 
 class PlanarAlignmentManager:
     """Manages planar alignment - laying parts flat on a surface."""
 
     def __init__(self, plate_manager=None):
-        self.parts_data = []
+        self.parts_list: List[Part] = []
         self.is_aligned = False
         self.original_transformations = []  # Store original transforms for reset
         self.selected_faces_per_part = (
@@ -32,18 +32,14 @@ class PlanarAlignmentManager:
         )  # Maps part index to selected face for orientation
         self.plate_manager = plate_manager  # Reference to plate manager
 
-    def initialize_parts(self, parts_list: List):
+    def initialize_parts(self, parts_list: List[Part]):
         """
         Initialize parts data.
 
         Args:
-            parts_list: List of (solid, color, ais_shape) tuples
+            parts_list: List of namedtuple Part
         """
-        self.parts_data = []
-        for solid, color, ais_shape in parts_list:
-            self.parts_data.append(
-                {"solid": solid, "color": color, "ais_shape": ais_shape}
-            )
+        self.parts_list = parts_list
 
     def set_selected_faces(self, selected_faces_map: dict):
         """
@@ -81,9 +77,9 @@ class PlanarAlignmentManager:
         # First pass: rotate parts to lay flat and calculate their bounding boxes
         part_transforms = []
 
-        for part_idx, part_data in enumerate(self.parts_data):
-            solid = part_data["solid"]
-            ais_shape = part_data["ais_shape"]
+        for part_idx, part in enumerate(self.parts_list):
+            solid = part.shape
+            ais_shape = part.ais_shape
 
             # Store original transformation
             if ais_shape.HasTransformation():
@@ -251,8 +247,8 @@ class PlanarAlignmentManager:
 
     def _reset_alignment(self, display, root):
         """Reset parts to their original orientations."""
-        for i, part_data in enumerate(self.parts_data):
-            ais_shape = part_data["ais_shape"]
+        for i, part in enumerate(self.parts_list):
+            ais_shape = part.ais_shape
 
             if i < len(self.original_transformations):
                 original_trsf = self.original_transformations[i]

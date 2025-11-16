@@ -8,6 +8,7 @@ import numpy as np
 from OCC.Core.gp import gp_Trsf, gp_Vec
 from OCC.Core.GProp import GProp_GProps
 from OCC.Core.BRepGProp import brepgprop
+from .part_helper import Part
 
 
 class ExplodeManager:
@@ -20,12 +21,12 @@ class ExplodeManager:
         self.min_part_distance = None
         self.selection_manager = None  # Will be set by viewer
 
-    def initialize_parts(self, parts_list: List):
+    def initialize_parts(self, parts_list: List[Part]):
         """
         Initialize parts data with their centroids and original locations.
 
         Args:
-            parts_list: List of (solid, color, ais_shape) tuples
+            parts_list: List of Parts(solid, color, ais_shape)
         """
         self.parts_data = []
         centroids = []
