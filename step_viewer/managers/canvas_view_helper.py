@@ -3,7 +3,7 @@ View helper for managing camera view presets.
 """
 
 
-class ViewHelper:
+class Canvas_View_Helper:
     """Controller for managing camera view presets."""
 
     def __init__(self, view):

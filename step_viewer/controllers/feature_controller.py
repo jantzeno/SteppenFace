@@ -5,7 +5,7 @@ Feature controller for managing viewer features like duplicate visibility and pl
 import tkinter as tk
 from typing import List, Tuple, Dict
 from ..managers.log_manager import logger
-from ..managers.view_helper import ViewHelper
+from ..managers.canvas_view_helper import Canvas_View_Helper
 
 
 class FeatureController:
@@ -35,7 +35,7 @@ class FeatureController:
         self.selection_manager = selection_manager
         self.tree_controller = tree_controller
         self.hidden_selections: Dict = {}
-        self.view_helper = ViewHelper(display.View)
+        self.view_helper = Canvas_View_Helper(display.View)
 
     def toggle_duplicate_visibility(self):
         """Toggle visibility of duplicate parts."""

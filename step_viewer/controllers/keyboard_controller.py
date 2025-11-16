@@ -3,7 +3,7 @@ Keyboard event controller.
 """
 
 from ..config import ViewerConfig
-from ..managers.view_helper import ViewHelper
+from ..managers.canvas_view_helper import Canvas_View_Helper
 from ..managers.color_manager import ColorManager
 from ..managers.log_manager import logger
 from ..managers.selection_manager import SelectionManager
@@ -27,7 +27,7 @@ class KeyboardController:
         self.config = config
         self.mode_label = None
         self.selection_label = None
-        self.view_helper = ViewHelper(display.View)
+        self.view_helper = Canvas_View_Helper(display.View)
 
     def set_ui_labels(self, mode_label, selection_label):
         """Set references to UI labels for updates."""

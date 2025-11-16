@@ -8,11 +8,11 @@ from .planar_alignment_manager import PlanarAlignmentManager
 from .plate_manager import PlateManager
 from .selection_manager import SelectionManager
 from .ui_manager import UIManager
-from .view_helper import ViewHelper
+from .canvas_view_helper import Canvas_View_Helper
 
 __all__ = [
     "CanvasManager",
-    "ViewHelper",
+    "Canvas_View_Helper",
     "ColorManager",
     "DeduplicationManager",
     "EventManager",
