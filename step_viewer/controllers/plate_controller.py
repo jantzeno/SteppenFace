@@ -308,10 +308,6 @@ class PlateController:
                         logger.info(idx_list)
                     # End debug
 
-                    # Update selected faces to move with their parts
-                    if self.selection_manager:
-                        self.selection_manager.update_face_transformations()
-
                     # Update plate display
                     self.plate_manager.update_all_plates(self.display)
                     self.display.FitAll()

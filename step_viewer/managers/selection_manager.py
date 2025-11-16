@@ -1,17 +1,16 @@
 """
-Face selection state management.
+Face selection state management using AIS_ColoredShape for highlighting.
 """
 
 from typing import Dict, List, Tuple
 
-from OCC.Core.AIS import AIS_Shape
-from OCC.Core.Aspect import Aspect_TypeOfLine
+from OCC.Core.AIS import AIS_ColoredShape, AIS_Shape
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_WIRE, TopAbs_EDGE
 from OCC.Core.GProp import GProp_GProps
 from OCC.Core.BRepGProp import brepgprop
 from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
-from OCC.Core.gp import gp_Pnt, gp_Vec, gp_Dir, gp_Lin, gp_Ax1, gp_Trsf
+from OCC.Core.gp import gp_Pnt, gp_Vec, gp_Dir, gp_Lin, gp_Ax1
 from OCC.Core.BRepIntCurveSurface import BRepIntCurveSurface_Inter
 import hashlib
 
@@ -28,10 +27,11 @@ class SelectionManager:
         self.color_manager = color_manager
         self.config = config
         self.is_selection_mode = False
-        self.highlighted_faces: Dict[int, AIS_Shape] = {}
-        self.face_parent_map: Dict[int, AIS_Shape] = (
-            {}
-        )  # Maps face hash to parent AIS_Shape
+
+        # Simple selection system: faces are either selected (orange) or unselected (base color)
+        # Maps face hash to tuple of (parent_AIS_ColoredShape, original_color)
+        self.selected_faces: Dict[int, Tuple[AIS_ColoredShape, object]] = {}
+
         # Map highlighted face hash to the original TopoDS_Face object
         self.face_to_faceobj_map: Dict[int, object] = {}
         # Stable 64-bit fingerprint (decimal string) for each face hash
@@ -40,6 +40,9 @@ class SelectionManager:
         self.part_selected_faces: Dict[int, any] = (
             {}
         )  # Maps part index to selected face object
+        # Map AIS_ColoredShape object itself to its base color (for restoring after selection)
+        # Using the object as key instead of id() to avoid Python wrapper issues
+        self.ais_base_colors: Dict = {}
         self.selection_label = None
         self.planar_alignment_manager = None  # Reference to planar alignment manager
 
@@ -51,33 +54,39 @@ class SelectionManager:
         """Set reference to planar alignment manager."""
         self.planar_alignment_manager = manager
 
-    def update_face_transformations(self):
-        """Update transformations of all highlighted faces to match their parent parts."""
-        for face_hash, ais_highlight in self.highlighted_faces.items():
-            if face_hash in self.face_parent_map:
-                parent_ais_shape = self.face_parent_map[face_hash]
-                if parent_ais_shape.HasTransformation():
-                    ais_highlight.SetLocalTransformation(
-                        parent_ais_shape.LocalTransformation()
-                    )
-                else:
-                    # Parent has no transformation, clear the face highlight transformation too
-                    ais_highlight.SetLocalTransformation(gp_Trsf())
+    def register_part_base_color(self, ais_shape, color):
+        """
+        Register the base color for a part's AIS_ColoredShape.
+        Called when parts are initially displayed.
 
-                # Redisplay to ensure transformation is applied
-                self.display.Context.Redisplay(ais_highlight, False)
+        Args:
+            ais_shape: The AIS_ColoredShape object
+            color: The Quantity_Color base color
+        """
+        # Use the AIS object itself as key (more stable than id())
+        self.ais_base_colors[ais_shape] = color
+        logger.debug(f"Registered base color for AIS object: {ais_shape}")
 
-        self.display.Context.UpdateCurrentViewer()
-        self.display.Repaint()
+    def _get_selected_color(self):
+        """Get the highlight color for selected faces (orange or changeable via color_manager)."""
+        color = self.color_manager.get_fill_quantity_color()
+        rgb, name = self.color_manager.get_current_fill_color()
+        logger.debug(f"Selection color: {name} RGB{rgb}")
+        return color
 
     def toggle_mode(self) -> bool:
-        """Toggle between navigation and selection mode. Returns new mode state."""
+        """Toggle between navigation and selection mode. Returns new mode state.
+
+        Selected faces remain visible and highlighted regardless of mode.
+        """
         self.is_selection_mode = not self.is_selection_mode
         return self.is_selection_mode
 
     def select_face_at_position(self, x: int, y: int, view, root) -> bool:
         """
-        Select or deselect a face at the given screen position.
+        Toggle selection of a face at the given screen position.
+
+        Click to select (orange highlight), click again to deselect (base color).
 
         Returns:
             True if a face was selected/deselected, False otherwise
@@ -92,76 +101,64 @@ class SelectionManager:
             if detected_shape.IsNull():
                 return False
 
-            # Get the parent interactive object (AIS_Shape) that was clicked
             detected_interactive = self.display.Context.DetectedInteractive()
-
             face_hash = detected_shape.__hash__()
 
-            if face_hash in self.highlighted_faces:
-                # Deselect
-                ais_highlight = self.highlighted_faces[face_hash]
-                self.display.Context.Remove(ais_highlight, True)
-                del self.highlighted_faces[face_hash]
-                if face_hash in self.face_parent_map:
-                    del self.face_parent_map[face_hash]
-                action = "Deselected"
-            else:
-                # Select
-                ais_highlight = AIS_Shape(detected_shape)
-                ais_highlight.SetColor(self.color_manager.get_fill_quantity_color())
-                ais_highlight.SetTransparency(self.config.SELECTION_TRANSPARENCY)
+            if detected_interactive is None:
+                return False
 
-                # Set display mode to shaded (1) to show the face properly
-                ais_highlight.SetDisplayMode(1)
+            # Get the parent AIS_ColoredShape
+            parent_ais = AIS_ColoredShape.DownCast(detected_interactive)
+            if parent_ais is None:
+                parent_ais = AIS_Shape.DownCast(detected_interactive)
+                if parent_ais is None:
+                    return False
 
-                # Copy transformation from parent object if it has one
-                if detected_interactive is not None:
-                    parent_ais = AIS_Shape.DownCast(detected_interactive)
-                    if parent_ais is not None:
-                        # Store the parent for later transformation updates
-                        self.face_parent_map[face_hash] = parent_ais
-                        if parent_ais.HasTransformation():
-                            ais_highlight.SetLocalTransformation(
-                                parent_ais.LocalTransformation()
-                            )
+            # Get original color from base color map
+            original_color = self.ais_base_colors.get(parent_ais)
+            if original_color is None:
+                logger.warning(f"No base color registered for AIS object {parent_ais}")
+                from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
+                original_color = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB)
 
-                drawer = ais_highlight.Attributes()
-                drawer.SetFaceBoundaryDraw(True)
-                drawer.FaceBoundaryAspect().SetColor(
-                    self.color_manager.get_outline_quantity_color()
-                )
-                drawer.FaceBoundaryAspect().SetWidth(
-                    self.config.SELECTION_OUTLINE_WIDTH
-                )
-                drawer.FaceBoundaryAspect().SetTypeOfLine(
-                    Aspect_TypeOfLine.Aspect_TOL_SOLID
-                )
-
-                self.display.Context.Display(ais_highlight, True)
-                self.highlighted_faces[face_hash] = ais_highlight
-                action = "Selected"
-
-                # Keep mapping to the concrete face object and a stable fingerprint
+            # Store face object if not already stored
+            if face_hash not in self.face_to_faceobj_map:
+                self.face_to_faceobj_map[face_hash] = detected_shape
                 try:
-                    self.face_to_faceobj_map[face_hash] = detected_shape
                     fp = self._face_fingerprint(detected_shape)
                     self.face_fingerprint_map[face_hash] = fp
                     logger.debug(f"    selection fingerprint={fp}")
                 except Exception:
                     pass
 
+            # Toggle selection: if already selected, deselect; otherwise select
+            if face_hash in self.selected_faces:
+                # Deselect: restore original color
+                parent_ais.SetCustomColor(detected_shape, original_color)
+                del self.selected_faces[face_hash]
+                action = "Deselected"
+            else:
+                # Select: apply highlight color
+                self.selected_faces[face_hash] = (parent_ais, original_color)
+                parent_ais.SetCustomColor(detected_shape, self._get_selected_color())
+                action = "Selected"
+
+            # Redisplay the parent object to apply the custom color immediately
+            self.display.Context.Redisplay(parent_ais, True)
+            # Clear OCCT's automatic highlighting so our custom colors take precedence
+            self.display.Context.ClearDetected()
             self.display.Context.UpdateCurrentViewer()
             self.display.Repaint()
             root.update_idletasks()
             root.update()
 
-            count = len(self.highlighted_faces)
+            total_selected = len(self.selected_faces)
             if self.selection_label:
                 self.selection_label.config(
-                    text=f"Selected: {count} face{'s' if count != 1 else ''}"
+                    text=f"Selected: {total_selected} face{'s' if total_selected != 1 else ''}"
                 )
 
-            logger.info(f"{action} face (total: {count})")
+            logger.info(f"{action} face (total: {total_selected})")
             return True
 
         except Exception as e:
@@ -169,12 +166,18 @@ class SelectionManager:
             return False
 
     def clear_all(self, root):
-        """Clear all selected faces."""
-        for ais_highlight in self.highlighted_faces.values():
-            self.display.Context.Remove(ais_highlight, True)
+        """Clear all selected faces by restoring original colors."""
+        # Restore original colors for all selected faces
+        for face_hash, (parent_ais, original_color) in self.selected_faces.items():
+            try:
+                face_obj = self.face_to_faceobj_map.get(face_hash)
+                if face_obj is not None and parent_ais is not None:
+                    parent_ais.SetCustomColor(face_obj, original_color)
+                    self.display.Context.Redisplay(parent_ais, True)
+            except Exception as e:
+                logger.warning(f"Could not restore color for face {face_hash}: {e}")
 
-        self.highlighted_faces.clear()
-        self.face_parent_map.clear()
+        self.selected_faces.clear()
         self.face_to_faceobj_map.clear()
         self.face_fingerprint_map.clear()
         self.face_to_part_map.clear()
@@ -196,23 +199,22 @@ class SelectionManager:
         logger.info("Cleared all selections")
 
     def update_all_colors(self, root):
-        """Update colors of all currently selected faces."""
-        fill_color = self.color_manager.get_fill_quantity_color()
-        outline_color = self.color_manager.get_outline_quantity_color()
+        """Update colors of all selected faces (when cycling through colors via '1' key)."""
+        fill_color = self._get_selected_color()
 
-        for ais_highlight in self.highlighted_faces.values():
-            ais_highlight.SetColor(fill_color)
-            ais_highlight.SetTransparency(self.config.SELECTION_TRANSPARENCY)
-
-            drawer = ais_highlight.Attributes()
-            drawer.SetFaceBoundaryDraw(True)
-            drawer.FaceBoundaryAspect().SetColor(outline_color)
-            drawer.FaceBoundaryAspect().SetWidth(self.config.SELECTION_OUTLINE_WIDTH)
-            drawer.FaceBoundaryAspect().SetTypeOfLine(
-                Aspect_TypeOfLine.Aspect_TOL_SOLID
-            )
-
-            self.display.Context.Redisplay(ais_highlight, True)
+        # Update all selected faces with the new color
+        redrawn_objects = set()
+        for face_hash, (parent_ais, _) in self.selected_faces.items():
+            try:
+                face_obj = self.face_to_faceobj_map.get(face_hash)
+                if face_obj is not None and parent_ais is not None:
+                    parent_ais.SetCustomColor(face_obj, fill_color)
+                    # Only redisplay each object once (in case multiple faces on same object)
+                    if id(parent_ais) not in redrawn_objects:
+                        self.display.Context.Redisplay(parent_ais, True)
+                        redrawn_objects.add(id(parent_ais))
+            except Exception as e:
+                logger.warning(f"Could not update color for face {face_hash}: {e}")
 
         self.display.Context.UpdateCurrentViewer()
         self.display.Repaint()
@@ -220,35 +222,12 @@ class SelectionManager:
         root.update()
 
         fill_rgb, fill_name = self.color_manager.get_current_fill_color()
-        outline_rgb, outline_name = self.color_manager.get_current_outline_color()
-        logger.info(f"\nSelection colors updated:")
-        logger.info(f"  Fill: {fill_name} RGB{fill_rgb}")
-        logger.info(f"  Outline: {outline_name} RGB{outline_rgb}\n")
+        logger.info(f"\nSelection color updated: {fill_name} RGB{fill_rgb}\n")
 
     def get_selection_count(self) -> int:
         """Get number of currently selected faces."""
-        return len(self.highlighted_faces)
+        return len(self.selected_faces)
 
-    def update_all_transformations(self, root):
-        """Update transformations of all selected faces to match their parent parts."""
-        for face_hash, ais_highlight in self.highlighted_faces.items():
-            if face_hash in self.face_parent_map:
-                parent_ais = self.face_parent_map[face_hash]
-                if parent_ais.HasTransformation():
-                    ais_highlight.SetLocalTransformation(
-                        parent_ais.LocalTransformation()
-                    )
-                else:
-                    # Clear transformation if parent has none
-                    ais_highlight.SetLocalTransformation(
-                        parent_ais.LocalTransformation()
-                    )
-                self.display.Context.Redisplay(ais_highlight, True)
-
-        self.display.Context.UpdateCurrentViewer()
-        self.display.Repaint()
-        root.update_idletasks()
-        root.update()
 
     def hide_selections_for_parts(self, ais_shapes_to_hide, root):
         """
@@ -258,25 +237,27 @@ class SelectionManager:
         hidden_selections = {}
         faces_to_remove = []
 
-        for face_hash, ais_highlight in list(self.highlighted_faces.items()):
-            if face_hash in self.face_parent_map:
-                parent_ais = self.face_parent_map[face_hash]
-                if parent_ais in ais_shapes_to_hide:
-                    # Store for later restoration
+        # Hide selected faces that belong to hidden parts
+        for face_hash, (parent_ais, original_color) in list(self.selected_faces.items()):
+            if parent_ais in ais_shapes_to_hide:
+                face_obj = self.face_to_faceobj_map.get(face_hash)
+                if face_obj is not None:
                     hidden_selections[face_hash] = {
-                        "ais_highlight": ais_highlight,
                         "parent_ais": parent_ais,
+                        "original_color": original_color,
+                        "face_obj": face_obj,
                     }
-                    # Hide the selection
-                    self.display.Context.Remove(ais_highlight, False)
+                    # Restore original color to hide the highlight
+                    parent_ais.SetCustomColor(face_obj, original_color)
+                    self.display.Context.Redisplay(parent_ais, True)
                     faces_to_remove.append(face_hash)
 
         # Remove from active selections
         for face_hash in faces_to_remove:
-            del self.highlighted_faces[face_hash]
+            del self.selected_faces[face_hash]
 
         # Update selection count label
-        count = len(self.highlighted_faces)
+        count = len(self.selected_faces)
         if self.selection_label:
             self.selection_label.config(
                 text=f"Selected: {count} face{'s' if count != 1 else ''}"
@@ -290,14 +271,25 @@ class SelectionManager:
 
     def restore_hidden_selections(self, hidden_selections, root):
         """Restore previously hidden selections when parts become visible again."""
+        redrawn_objects = set()
         for face_hash, selection_data in hidden_selections.items():
-            ais_highlight = selection_data["ais_highlight"]
-            # Restore the selection
-            self.display.Context.Display(ais_highlight, False)
-            self.highlighted_faces[face_hash] = ais_highlight
+            parent_ais = selection_data["parent_ais"]
+            face_obj = selection_data["face_obj"]
+            original_color = selection_data["original_color"]
+
+            try:
+                # Restore as selected with highlight color
+                self.selected_faces[face_hash] = (parent_ais, original_color)
+                parent_ais.SetCustomColor(face_obj, self._get_selected_color())
+                # Only redisplay each object once (in case multiple faces on same object)
+                if id(parent_ais) not in redrawn_objects:
+                    self.display.Context.Redisplay(parent_ais, True)
+                    redrawn_objects.add(id(parent_ais))
+            except Exception as e:
+                logger.warning(f"Could not restore selection for face {face_hash}: {e}")
 
         # Update selection count label
-        count = len(self.highlighted_faces)
+        count = len(self.selected_faces)
         if self.selection_label:
             self.selection_label.config(
                 text=f"Selected: {count} face{'s' if count != 1 else ''}"
@@ -540,50 +532,43 @@ class SelectionManager:
                 face_hash = selected_face.__hash__()
 
                 # Only add if not already selected
-                if face_hash not in self.highlighted_faces:
-                    ais_highlight = AIS_Shape(selected_face)
-                    ais_highlight.SetColor(self.color_manager.get_fill_quantity_color())
-                    ais_highlight.SetTransparency(self.config.SELECTION_TRANSPARENCY)
-                    ais_highlight.SetDisplayMode(1)  # Shaded mode
+                is_already_selected = face_hash in self.selected_faces
 
-                    # Copy transformation from parent if it has one
-                    if ais_shape.HasTransformation():
-                        ais_highlight.SetLocalTransformation(
-                            ais_shape.LocalTransformation()
-                        )
+                if not is_already_selected:
+                    # Use SetCustomColor on parent AIS_ColoredShape instead of creating new shape
+                    # Get the original color from the base color map
+                    original_color = self.ais_base_colors.get(ais_shape)
+                    if original_color is None:
+                        logger.warning(f"No base color registered for AIS object {ais_shape}")
+                        from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
+                        original_color = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB)
 
-                    # Store the parent for transformation updates
-                    self.face_parent_map[face_hash] = ais_shape
+                    # Apply highlight color to the selected face
+                    ais_shape.SetCustomColor(selected_face, self._get_selected_color())
+                    # Redisplay to apply the color (deduplicate later if needed)
+                    self.display.Context.Redisplay(ais_shape, True)
+
+                    # Store the parent and original color in selected faces
+                    self.selected_faces[face_hash] = (ais_shape, original_color)
 
                     # Store face to part mapping and part's selected face
                     self.face_to_part_map[face_hash] = idx
                     self.part_selected_faces[idx] = selected_face
 
-                    # Apply outline
-                    drawer = ais_highlight.Attributes()
-                    drawer.SetFaceBoundaryDraw(True)
-                    drawer.FaceBoundaryAspect().SetColor(
-                        self.color_manager.get_outline_quantity_color()
-                    )
-                    drawer.FaceBoundaryAspect().SetWidth(
-                        self.config.SELECTION_OUTLINE_WIDTH
-                    )
-                    drawer.FaceBoundaryAspect().SetTypeOfLine(
-                        Aspect_TypeOfLine.Aspect_TOL_SOLID
-                    )
+                    # Store face object for later restoration
+                    self.face_to_faceobj_map[face_hash] = selected_face
 
-                    self.display.Context.Display(ais_highlight, True)
-                    self.highlighted_faces[face_hash] = ais_highlight
                     selected_count += 1
 
-        # Update display
+        # Update display with clear detected to avoid OCCT's automatic highlighting
+        self.display.Context.ClearDetected()
         self.display.Context.UpdateCurrentViewer()
         self.display.Repaint()
         root.update_idletasks()
         root.update()
 
         # Update selection count label
-        count = len(self.highlighted_faces)
+        count = len(self.selected_faces)
         if self.selection_label:
             self.selection_label.config(
                 text=f"Selected: {count} face{'s' if count != 1 else ''}"

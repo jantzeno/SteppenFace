@@ -9,6 +9,7 @@ from .part_helper import Part
 
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRGB
 from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine, Aspect_TOTP_RIGHT_LOWER
+from OCC.Core.AIS import AIS_ColoredShape
 
 from ..config import ViewerConfig
 from ..loaders import StepLoader
@@ -57,7 +58,7 @@ class CanvasManager:
         self, shape, explode_manager, planar_alignment_manager
     ) -> List[Tuple]:
         """
-        Display the loaded model with colored parts.
+        Display the loaded model with colored parts using AIS_ColoredShape.
 
         Args:
             shape: The STEP shape to display
@@ -65,7 +66,7 @@ class CanvasManager:
             planar_alignment_manager: Manager for planar alignment
 
         Returns:
-            List of (solid, color_tuple, ais_shape) tuples
+            List of (solid, color_tuple, ais_colored_shape) tuples
         """
         from ..controllers.material_renderer import MaterialRenderer
 
@@ -78,28 +79,36 @@ class CanvasManager:
             color = Quantity_Color(
                 palette[0][0], palette[0][1], palette[0][2], Quantity_TOC_RGB
             )
-            ais_shape = self.display.DisplayShape(shape, color=color, update=False)[0]
-            MaterialRenderer.apply_matte_material(ais_shape, color)
+            # Create AIS_ColoredShape instead of AIS_Shape
+            ais_colored_shape = AIS_ColoredShape(shape)
+            ais_colored_shape.SetColor(color)
+            ais_colored_shape.SetTransparency(0.0)
+            ais_colored_shape.SetDisplayMode(1)
+            self.display.Context.Display(ais_colored_shape, False)
+            MaterialRenderer.apply_matte_material(ais_colored_shape, color)
             parts_list.append(
                 Part(
-                shape=shape, 
+                shape=shape,
                 pallete=palette[0],
-                ais_shape=ais_shape)
+                ais_shape=ais_colored_shape)
                 )
         else:
             random.shuffle(palette)
             for i, solid in enumerate(solids):
                 r, g, b = palette[i % len(palette)]
                 color = Quantity_Color(r, g, b, Quantity_TOC_RGB)
-                ais_shape = self.display.DisplayShape(solid, color=color, update=False)[
-                    0
-                ]
-                MaterialRenderer.apply_matte_material(ais_shape, color)
+                # Create AIS_ColoredShape instead of AIS_Shape
+                ais_colored_shape = AIS_ColoredShape(solid)
+                ais_colored_shape.SetColor(color)
+                ais_colored_shape.SetTransparency(0.0)
+                ais_colored_shape.SetDisplayMode(1)
+                self.display.Context.Display(ais_colored_shape, False)
+                MaterialRenderer.apply_matte_material(ais_colored_shape, color)
                 parts_list.append(
                     Part(
-                        shape=solid, 
-                        pallete=(r, g, b), 
-                        ais_shape=ais_shape))
+                        shape=solid,
+                        pallete=(r, g, b),
+                        ais_shape=ais_colored_shape))
 
             logger.info(f"Assigned colors to {len(solids)} solid(s)")
 
@@ -136,6 +145,8 @@ class CanvasManager:
         render_params = self.display.View.ChangeRenderingParams()
         render_params.IsAntialiasingEnabled = True
         render_params.NbMsaaSamples = self.config.MSAA_SAMPLES
+        render_params.AddLights = False
+        render_params.Shading = False
 
         # xyz widget
         self.display.View.TriedronDisplay(

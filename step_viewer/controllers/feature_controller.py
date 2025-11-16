@@ -136,9 +136,6 @@ class FeatureController:
             self.display, self.root
         )
 
-        # Update face highlight transformations to match their parent parts
-        self.selection_manager.update_face_transformations()
-
         if is_aligned:
             # Associate parts with plates based on their positions
             self.plate_manager.associate_parts_by_position(

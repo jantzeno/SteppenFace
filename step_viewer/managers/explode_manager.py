@@ -140,10 +140,6 @@ class ExplodeManager:
         display.Context.UpdateCurrentViewer()
         root.update_idletasks()
 
-        # Update face highlight transformations if selection manager is set
-        if self.selection_manager:
-            self.selection_manager.update_all_transformations(root)
-
     def reset(self, display, root):
         """Reset all parts to original positions."""
         self.set_explosion_factor(0.0, display, root)

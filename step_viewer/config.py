@@ -17,7 +17,7 @@ class ViewerConfig:
     SELECTION_COLOR = (1.0, 0.5, 0.0)
     SELECTION_OUTLINE_COLOR = (0.07, 0.07, 0.09)
     SELECTION_OUTLINE_WIDTH = 2.0
-    SELECTION_TRANSPARENCY = 0.1
+    SELECTION_TRANSPARENCY = 0.5
 
     # Material thickness for external face detection (mm)
     # This controls the raycast threshold - intersections within this distance
