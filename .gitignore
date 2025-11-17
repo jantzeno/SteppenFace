@@ -13,6 +13,9 @@ __pycache__/
 # Continue
 .continue
 
+# SVG Files
+*.svg
+
 # C extensions
 *.so
 
