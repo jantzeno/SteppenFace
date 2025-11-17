@@ -272,9 +272,22 @@ class SelectionManager:
                 face_id = None
                 fp = None
 
-            # Log requested information
+            # Compute UI and file part numbers (1-based) for clearer logging
+            ui_part_number = None
+            file_part_number = None
+            try:
+                if part_idx is not None:
+                    # UI shows parts as 1-based "Part {i+1}"
+                    ui_part_number = part_idx + 1
+                    # File part number 0 based
+                    file_part_number = part_idx
+            except Exception:
+                ui_part_number = None
+                file_part_number = None
+
+            # Log requested information including both UI and file part numbers
             logger.info(
-                f"Clicked face -> part: {part_idx}, face_id: {face_id}, global_face: {global_face_number}, face_hash: {face_hash}, fingerprint: {fp}"
+                f"Clicked face -> ui_part: {ui_part_number}, file_part: {file_part_number}, face_id: {face_id}, global_face: {global_face_number}, face_hash: {face_hash}, fingerprint: {fp}"
             )
 
             # Clear OCCT detection highlighting
