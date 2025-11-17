@@ -165,6 +165,13 @@ class ApplicationManager:
         )
         self.tree_controller.setup_tree_selection()
 
+        # Provide parts_list to mouse controller so navigation clicks can resolve part indices
+        try:
+            if hasattr(self, 'mouse_controller') and self.mouse_controller is not None:
+                self.mouse_controller.set_parts_list(self.parts_list)
+        except Exception:
+            pass
+
         # Feature controller for toggles
         self.feature_controller = FeatureController(
             self.root,

@@ -165,6 +165,129 @@ class SelectionManager:
             logger.error(f"Error selecting face: {e}")
             return False
 
+    def inspect_face_at_position(self, x: int, y: int, view, parts_list=None) -> bool:
+        """
+        Inspect (do not select) a face at the given screen position and log
+        part index, per-part face id and face hash to the console.
+
+        Args:
+            x, y: screen coordinates
+            view: the OCC view object
+            parts_list: optional list of (solid, color, ais_shape) tuples to
+                        resolve part indices locally
+
+        Returns:
+            True if a face was detected and logged, False otherwise
+        """
+        try:
+            self.display.Context.MoveTo(x, y, view, True)
+
+            if not self.display.Context.HasDetected():
+                return False
+
+            detected_shape = self.display.Context.DetectedShape()
+            if detected_shape.IsNull():
+                return False
+
+            detected_interactive = self.display.Context.DetectedInteractive()
+            if detected_interactive is None:
+                return False
+
+            # Get the parent AIS object
+            parent_ais = AIS_ColoredShape.DownCast(detected_interactive)
+            if parent_ais is None:
+                parent_ais = AIS_Shape.DownCast(detected_interactive)
+                if parent_ais is None:
+                    return False
+
+            # Compute a face hash (stable within run)
+            try:
+                face_hash = detected_shape.__hash__()
+            except Exception:
+                face_hash = id(detected_shape)
+
+            # Try to compute a per-part face id if parts_list given
+            part_idx = None
+            face_id = None
+            try:
+                if parts_list is not None:
+                    # find the part index for this AIS object
+                    for idx, (solid, _color, ais_shape) in enumerate(parts_list):
+                        if ais_shape == parent_ais:
+                            part_idx = idx
+                            # enumerate faces within this solid to find per-part index
+                            exp = TopExp_Explorer(solid, TopAbs_FACE)
+                            num = 0
+                            while exp.More():
+                                num += 1
+                                if exp.Current().IsSame(detected_shape):
+                                    face_id = num
+                                    break
+                                exp.Next()
+                            break
+                # fallback: check any stored mapping
+                if part_idx is None:
+                    part_idx = self.face_to_part_map.get(face_hash)
+
+                # Try to get stable fingerprint if available
+                fp = self.face_fingerprint_map.get(face_hash)
+                if not fp:
+                    try:
+                        fp = self._face_fingerprint(detected_shape)
+                        # do not store here, just peek
+                    except Exception:
+                        fp = None
+                # Also compute a global face number (1-based) across all parts when parts_list provided
+                global_face_number = None
+                if parts_list is not None:
+                    try:
+                        global_face_map = {}
+                        global_idx = 1
+                        for s, _c, _a in parts_list:
+                            exp_g = TopExp_Explorer(s, TopAbs_FACE)
+                            while exp_g.More():
+                                f = exp_g.Current()
+                                try:
+                                    key = f.__hash__()
+                                except Exception:
+                                    key = id(f)
+                                # Only set if not already set (first occurrence)
+                                if key not in global_face_map:
+                                    global_face_map[key] = global_idx
+                                global_idx += 1
+                                exp_g.Next()
+
+                        # lookup by same key method
+                        try:
+                            detected_key = detected_shape.__hash__()
+                        except Exception:
+                            detected_key = id(detected_shape)
+
+                        global_face_number = global_face_map.get(detected_key)
+                    except Exception:
+                        global_face_number = None
+
+            except Exception:
+                part_idx = None
+                face_id = None
+                fp = None
+
+            # Log requested information
+            logger.info(
+                f"Clicked face -> part: {part_idx}, face_id: {face_id}, global_face: {global_face_number}, face_hash: {face_hash}, fingerprint: {fp}"
+            )
+
+            # Clear OCCT detection highlighting
+            self.display.Context.ClearDetected()
+            self.display.Context.UpdateCurrentViewer()
+            self.display.Repaint()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error inspecting face: {e}")
+            return False
+
     def clear_all(self, root):
         """Clear all selected faces by restoring original colors."""
         # Restore original colors for all selected faces
