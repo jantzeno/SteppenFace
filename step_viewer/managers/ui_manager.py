@@ -410,6 +410,14 @@ class UIManager:
         btn_edit_dimensions.pack(expand=True, fill=tk.X)
         self.plate_widgets["edit_dimensions"] = btn_edit_dimensions
 
+        # Button row 6: Export SVG
+        btn_row6 = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
+        btn_row6.pack(fill=tk.X, pady=2)
+
+        btn_export_svg = tk.Button(btn_row6, text="Export SVG", **button_style)
+        btn_export_svg.pack(expand=True, fill=tk.X)
+        self.plate_widgets["export_svg"] = btn_export_svg
+
         # Unit selection frame
         unit_frame = tk.Frame(plate_frame, bg=self.config.PANEL_BG)
         unit_frame.pack(fill=tk.X, pady=(5, 0))

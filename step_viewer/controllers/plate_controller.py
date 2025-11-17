@@ -3,9 +3,10 @@ Plate controller for managing plates and part arrangement.
 """
 
 import tkinter as tk
-from tkinter import simpledialog, messagebox
+from tkinter import simpledialog, messagebox, filedialog
+from pathlib import Path
 from typing import List
-from ..managers.part_helper import Part, get_largest_xy_plane_face
+from ..managers.part_helper import Part
 from ..managers.log_manager import logger
 from ..managers.plate_arrangement_manager import PlateArrangementManager
 from ..managers.units_manager import UnitSystem
@@ -45,6 +46,7 @@ class PlateController:
         self.ui.plate_widgets["edit_dimensions"].config(
             command=self.edit_plate_dimensions
         )
+        self.ui.plate_widgets["export_svg"].config(command=self.export_plate_to_svg)
 
         # Setup unit system change callback
         if self.units_manager:
@@ -336,6 +338,91 @@ class PlateController:
                     f"An error occurred during arrangement:\n{str(e)}",
                     parent=self.root,
                 )
+
+        self.canvas.focus_set()
+
+    def export_plate_to_svg(self):
+        """Export the selected plate to SVG format."""
+        # Check if planar alignment is active
+        if not self.planar_alignment_manager.is_aligned:
+            messagebox.showwarning(
+                "Planar Alignment Required",
+                "Please enable planar alignment (press 'P') before exporting SVG.",
+                parent=self.root,
+            )
+            self.canvas.focus_set()
+            return
+
+        # Get selected plate
+        selection = self.ui.plate_listbox.curselection()
+        if not selection:
+            messagebox.showwarning(
+                "No Selection",
+                "Please select a plate to export to SVG.",
+                parent=self.root,
+            )
+            self.canvas.focus_set()
+            return
+
+        plate_idx = selection[0]
+        if plate_idx >= len(self.plate_manager.plates):
+            self.canvas.focus_set()
+            return
+
+        plate = self.plate_manager.plates[plate_idx]
+
+        # Check if plate has parts
+        if not plate.part_indices:
+            messagebox.showwarning(
+                "No Parts on Plate",
+                f"Plate '{plate.name}' has no parts to export.",
+                parent=self.root,
+            )
+            self.canvas.focus_set()
+            return
+
+        # Check if arrangement was done (have packing results)
+        if not self.arrangement_manager.last_packing_results:
+            messagebox.showwarning(
+                "No Arrangement Found",
+                "Please arrange parts on plates before exporting SVG.",
+                parent=self.root,
+            )
+            self.canvas.focus_set()
+            return
+
+        # Ask user for output directory
+        output_dir = filedialog.askdirectory(
+            title=f"Save SVG for '{plate.name}' to...",
+            parent=self.root,
+        )
+
+        if not output_dir:
+            # User cancelled
+            self.canvas.focus_set()
+            return
+
+        try:
+            # Export plate to SVG
+            output_path = Path(output_dir)
+            self.arrangement_manager.export_plate_to_svg(
+                plate.id, self.parts_list, output_path, self.planar_alignment_manager
+            )
+
+            messagebox.showinfo(
+                "Export Successful",
+                f"Successfully exported '{plate.name}' to SVG.\n\nFile: {output_path / f'{plate.name}.svg'}",
+                parent=self.root,
+            )
+            logger.info(f"Exported plate {plate.name} to {output_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to export plate {plate.id}: {e}")
+            messagebox.showerror(
+                "Export Failed",
+                f"An error occurred while exporting SVG:\n{str(e)}",
+                parent=self.root,
+            )
 
         self.canvas.focus_set()
 

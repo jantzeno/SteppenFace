@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional
 import numpy as np
 import math
 
-from OCC.Core.gp import gp_Trsf, gp_Vec, gp_Ax1, gp_Pnt, gp_Dir, gp_Ax3
+from OCC.Core.gp import gp_Trsf, gp_Vec, gp_Ax1, gp_Pnt, gp_Dir
 from OCC.Core.GProp import GProp_GProps
 from OCC.Core.BRepGProp import brepgprop
 from OCC.Core.TopAbs import TopAbs_FACE
@@ -27,6 +27,7 @@ class PlanarAlignmentManager:
         self.parts_list: List[Part] = []
         self.is_aligned = False
         self.original_transformations = []  # Store original transforms for reset
+        self.planar_rotation_transformations = []  # Store planar-only rotation transforms
         self.selected_faces_per_part = (
             {}
         )  # Maps part index to selected face for orientation
@@ -73,6 +74,7 @@ class PlanarAlignmentManager:
     def _apply_planar_alignment(self, display, root):
         """Apply planar alignment to all parts - lay flat and arrange in grid."""
         self.original_transformations = []
+        self.planar_rotation_transformations = []
 
         # First pass: rotate parts to lay flat and calculate their bounding boxes
         part_transforms = []
@@ -173,6 +175,8 @@ class PlanarAlignmentManager:
                         "ais_shape": ais_shape,
                     }
                 )
+                # Store planar-only rotation transformation for later use in SVG export
+                self.planar_rotation_transformations.append(rotation_trsf)
             else:
                 # No planar face found, store identity transform
                 part_transforms.append(
@@ -185,6 +189,8 @@ class PlanarAlignmentManager:
                         "ais_shape": ais_shape,
                     }
                 )
+                # Store identity transformation for parts with no planar face
+                self.planar_rotation_transformations.append(gp_Trsf())
 
         # Second pass: arrange parts in a grid layout
         grid_cols = math.ceil(math.sqrt(len(part_transforms)))
