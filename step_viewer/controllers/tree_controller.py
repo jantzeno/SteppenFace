@@ -14,7 +14,12 @@ class TreeController:
     """Manages tree-based part selection and highlighting."""
 
     def __init__(
-        self, ui, canvas, display, part_manager: PartManager, deduplication_manager: DeduplicationManager
+        self,
+        ui,
+        canvas,
+        display,
+        part_manager: PartManager,
+        deduplication_manager: DeduplicationManager,
     ):
         self.ui = ui
         self.canvas = canvas

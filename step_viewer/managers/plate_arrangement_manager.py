@@ -148,7 +148,7 @@ class PlateArrangementManager:
     @property
     def get_last_packing_results(self):
         return self.last_packing_results
-    
+
     def arrange_parts_on_plates(
         self, parts_list: List[Part], display=None
     ) -> List[PackingResult]:

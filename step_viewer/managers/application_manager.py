@@ -85,12 +85,19 @@ class ApplicationManager:
 
         # Register base colors for all parts in the selection manager
         from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
+
         for part in self.part_manager.get_parts():
-            color = Quantity_Color(part.pallete[0], part.pallete[1], part.pallete[2], Quantity_TOC_RGB)
-            self.selection_manager.register_part_base_color(part.ais_colored_shape, color)
+            color = Quantity_Color(
+                part.pallete[0], part.pallete[1], part.pallete[2], Quantity_TOC_RGB
+            )
+            self.selection_manager.register_part_base_color(
+                part.ais_colored_shape, color
+            )
 
         # Configure display settings and populate UI from the PartManager
-        self.display_manager.configure_display(self.part_manager.get_parts(), self.color_manager)
+        self.display_manager.configure_display(
+            self.part_manager.get_parts(), self.color_manager
+        )
         self.ui.populate_parts_tree(self.part_manager.get_parts())
 
         # Setup UI controllers
@@ -129,7 +136,9 @@ class ApplicationManager:
         self.plate_manager = PlateManager(
             self.config.SHEET_WIDTH_MM, self.config.SHEET_HEIGHT_MM
         )
-        self.planar_alignment_manager = PlanarAlignmentManager(self.part_manager,self.plate_manager)
+        self.planar_alignment_manager = PlanarAlignmentManager(
+            self.part_manager, self.plate_manager
+        )
         self.selection_manager = SelectionManager(
             self.display, self.color_manager, self.planar_alignment_manager, self.config
         )
@@ -139,7 +148,11 @@ class ApplicationManager:
 
         # Initialize controllers
         self.mouse_controller = MouseController(
-            self.view, self.display, self.part_manager, self.selection_manager, self.root
+            self.view,
+            self.display,
+            self.part_manager,
+            self.selection_manager,
+            self.root,
         )
         self.keyboard_controller = KeyboardController(
             self.display,

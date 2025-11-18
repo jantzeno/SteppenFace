@@ -5,7 +5,14 @@ from ..managers.part_manager import PartManager
 class MouseController:
     """Handles main application mouse events for navigation and face selection."""
 
-    def __init__(self, view, display, parts_manager: PartManager, selection_manager: SelectionManager, root):
+    def __init__(
+        self,
+        view,
+        display,
+        parts_manager: PartManager,
+        selection_manager: SelectionManager,
+        root,
+    ):
         self.view = view
         self.display = display
         self.part_manager = parts_manager
@@ -81,5 +88,3 @@ class MouseController:
             self.display.ZoomFactor(1.1)
         elif event.delta < 0 or event.num == 5:
             self.display.ZoomFactor(0.9)
-
-

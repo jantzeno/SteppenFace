@@ -67,20 +67,26 @@ class FeatureController:
                 self.hidden_selections = {}
 
             # Update parts tree to remove hidden indicators
-            self.ui.update_parts_tree(self.part_manager.get_parts(), self.deduplication_manager)
+            self.ui.update_parts_tree(
+                self.part_manager.get_parts(), self.deduplication_manager
+            )
 
             # Restore highlight indicators in the refreshed tree
             self.tree_controller.restore_tree_highlight_indicators()
         else:
             # Hide duplicate parts
             unique_parts, duplicate_groups = (
-                self.deduplication_manager.get_unique_parts(self.part_manager.get_parts())
+                self.deduplication_manager.get_unique_parts(
+                    self.part_manager.get_parts()
+                )
             )
 
             # Collect AIS shapes that will be hidden
             hidden_indices = self.deduplication_manager.hidden_indices
             current_parts = self.part_manager.get_parts()
-            ais_shapes_to_hide = [current_parts[i].ais_colored_shape for i in hidden_indices]
+            ais_shapes_to_hide = [
+                current_parts[i].ais_colored_shape for i in hidden_indices
+            ]
 
             # Hide selections for parts that are about to be hidden
             self.hidden_selections = self.selection_manager.hide_selections_for_parts(
@@ -98,7 +104,9 @@ class FeatureController:
             logger.info("Showing only unique parts (duplicates hidden)")
 
             # Update parts tree to show hidden status
-            self.ui.update_parts_tree(self.part_manager.get_parts(), self.deduplication_manager)
+            self.ui.update_parts_tree(
+                self.part_manager.get_parts(), self.deduplication_manager
+            )
 
             # Restore highlight indicators in the refreshed tree
             self.tree_controller.restore_tree_highlight_indicators()
@@ -148,7 +156,9 @@ class FeatureController:
         if is_aligned:
             # Associate parts with plates based on their positions
             parts_for_plate = self.part_manager.get_parts()
-            self.plate_manager.associate_parts_by_position(parts_for_plate, self.display)
+            self.plate_manager.associate_parts_by_position(
+                parts_for_plate, self.display
+            )
 
             # Update plate list UI
             self.ui.update_plate_list(self.plate_manager)

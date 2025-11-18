@@ -88,10 +88,9 @@ class CanvasManager:
             MaterialRenderer.apply_matte_material(ais_colored_shape, color)
             parts_list.append(
                 Part(
-                shape=shape,
-                pallete=palette[0],
-                ais_colored_shape=ais_colored_shape)
+                    shape=shape, pallete=palette[0], ais_colored_shape=ais_colored_shape
                 )
+            )
         else:
             random.shuffle(palette)
             for i, solid in enumerate(solids):
@@ -108,7 +107,9 @@ class CanvasManager:
                     Part(
                         shape=solid,
                         pallete=(r, g, b),
-                        ais_colored_shape=ais_colored_shape))
+                        ais_colored_shape=ais_colored_shape,
+                    )
+                )
 
             logger.info(f"Assigned colors to {len(solids)} solid(s)")
 
@@ -186,7 +187,9 @@ class CanvasManager:
 
         # Enable face selection for all parts
         for part in parts_list:
-            self.display.Context.Activate(part.ais_colored_shape, 4, False)  # 4 = TopAbs_FACE
+            self.display.Context.Activate(
+                part.ais_colored_shape, 4, False
+            )  # 4 = TopAbs_FACE
             part.ais_colored_shape.SetHilightMode(1)
 
     def setup_resize_handler(self):

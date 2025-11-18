@@ -21,6 +21,7 @@ from OCC.Core.TopoDS import TopoDS_Compound, TopoDS_Builder
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCC.Core.gp import gp_Ax3, gp_Dir, gp_Trsf
 from OCC.Extend.DataExchange import export_shape_to_svg
+
 # The sampling-based exporters and helpers were removed: this script focuses
 # exclusively on the native OCC.Extend.DataExchange exporter. Removing the
 # dead helper functions (sampling, triangulation, projection helpers) keeps
@@ -72,7 +73,11 @@ def find_face_plane_and_basis(face):
         xdir = None
         ydir = None
         if pl is not None:
-            if hasattr(pl, "Location") and hasattr(pl, "XDirection") and hasattr(pl, "YDirection"):
+            if (
+                hasattr(pl, "Location")
+                and hasattr(pl, "XDirection")
+                and hasattr(pl, "YDirection")
+            ):
                 origin = pl.Location()
                 xdir = pl.XDirection()
                 ydir = pl.YDirection()
@@ -129,7 +134,9 @@ def find_face_plane_and_basis(face):
 # the file smaller and easier to maintain.
 
 
-def export_face_with_extend(face, out_path: Path, view: str = "top", orthogonalize: bool = True, **kwargs):
+def export_face_with_extend(
+    face, out_path: Path, view: str = "top", orthogonalize: bool = True, **kwargs
+):
     """Use OCC.Extend.DataExchange.export_shape_to_svg to write the face.
 
     This wraps the face into a compound and calls the native exporter. The
@@ -171,7 +178,11 @@ def export_face_with_extend(face, out_path: Path, view: str = "top", orthogonali
 
             tgt_x = pick_xdir(desired_dir)
 
-            src_ax3 = gp_Ax3(origin, gp_Dir(normal.X(), normal.Y(), normal.Z()), gp_Dir(ex.X(), ex.Y(), ex.Z()))
+            src_ax3 = gp_Ax3(
+                origin,
+                gp_Dir(normal.X(), normal.Y(), normal.Z()),
+                gp_Dir(ex.X(), ex.Y(), ex.Z()),
+            )
             tgt_ax3 = gp_Ax3(origin, desired_dir, tgt_x)
             trsf = gp_Trsf()
             trsf.SetTransformation(src_ax3, tgt_ax3)
@@ -221,13 +232,42 @@ def project_point_to_basis(p: gp_Pnt, origin: gp_Pnt, ex: gp_Vec, ey: gp_Vec):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Export a face from a STEP file to SVG using OCC.Extend.DataExchange native exporter.")
-    p.add_argument("--step", required=False, default="sample_files/Assembly 3.step", help="Path to STEP file (default: sample_files/Assembly 3.step)")
-    p.add_argument("--index", required=False, type=int, default=0, help="Face global index (0-based by default)")
-    p.add_argument("--one-based", action="store_true", help="Treat --index as 1-based instead of 0-based")
-    p.add_argument("--out", required=False, default="face_export.svg", help="Output SVG filename")
-    p.add_argument("--view", required=False, choices=["top", "bottom", "left", "right", "front", "back"], default="top", help="View direction to orient the face before export (default: top)")
-    p.add_argument("--no-orthogonalize", action="store_true", help="Do not orthogonalize the face before exporting (default: orthogonalize)")
+    p = argparse.ArgumentParser(
+        description="Export a face from a STEP file to SVG using OCC.Extend.DataExchange native exporter."
+    )
+    p.add_argument(
+        "--step",
+        required=False,
+        default="sample_files/Assembly 3.step",
+        help="Path to STEP file (default: sample_files/Assembly 3.step)",
+    )
+    p.add_argument(
+        "--index",
+        required=False,
+        type=int,
+        default=0,
+        help="Face global index (0-based by default)",
+    )
+    p.add_argument(
+        "--one-based",
+        action="store_true",
+        help="Treat --index as 1-based instead of 0-based",
+    )
+    p.add_argument(
+        "--out", required=False, default="face_export.svg", help="Output SVG filename"
+    )
+    p.add_argument(
+        "--view",
+        required=False,
+        choices=["top", "bottom", "left", "right", "front", "back"],
+        default="top",
+        help="View direction to orient the face before export (default: top)",
+    )
+    p.add_argument(
+        "--no-orthogonalize",
+        action="store_true",
+        help="Do not orthogonalize the face before exporting (default: orthogonalize)",
+    )
     args = p.parse_args()
 
     step_path = Path(args.step)
@@ -250,7 +290,9 @@ def main():
     if args.one_based:
         idx = idx - 1
     if idx < 0 or idx >= len(faces):
-        print(f"Index out of range. Found {len(faces)} faces. Requested index: {args.index} (0-based interpreted as {idx})")
+        print(
+            f"Index out of range. Found {len(faces)} faces. Requested index: {args.index} (0-based interpreted as {idx})"
+        )
         sys.exit(5)
 
     selected_face = faces[idx]
@@ -258,7 +300,9 @@ def main():
     try:
         # Always use the native exporter. Orthogonalize by default unless
         # explicitly disabled with --no-orthogonalize.
-        res = export_face_with_extend(selected_face, out, view=args.view, orthogonalize=not args.no_orthogonalize)
+        res = export_face_with_extend(
+            selected_face, out, view=args.view, orthogonalize=not args.no_orthogonalize
+        )
         print(f"Wrote SVG to: {res}")
     except Exception as e:
         print(f"Failed exporting face: {e}")

@@ -14,6 +14,7 @@ from OCC.Core.AIS import AIS_Shape
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
 
+
 @dataclass
 class ExclusionZone:
     """Represents a rectangular exclusion zone on a plate where parts cannot be placed."""

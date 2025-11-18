@@ -420,7 +420,10 @@ class PlateController:
             # Export plate to SVG
             output_path = Path(output_dir)
             self.arrangement_manager.export_plate_to_svg(
-                plate.id, self._get_parts_list(), output_path, self.planar_alignment_manager
+                plate.id,
+                self._get_parts_list(),
+                output_path,
+                self.planar_alignment_manager,
             )
 
             messagebox.showinfo(

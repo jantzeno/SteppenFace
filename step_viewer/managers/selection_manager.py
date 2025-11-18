@@ -23,7 +23,13 @@ from .log_manager import logger
 class SelectionManager:
     """Manages face selection state and highlighting."""
 
-    def __init__(self, display, color_manager: ColorManager, planar_alignment_manager: PlanarAlignmentManager, config: ViewerConfig):
+    def __init__(
+        self,
+        display,
+        color_manager: ColorManager,
+        planar_alignment_manager: PlanarAlignmentManager,
+        config: ViewerConfig,
+    ):
         self.display = display
         self.color_manager = color_manager
         self.planar_alignment_manager = planar_alignment_manager
@@ -40,11 +46,8 @@ class SelectionManager:
         # Stable 64-bit fingerprint (decimal string) for each face hash
         self.face_fingerprint_map: Dict[int, str] = {}
         self.face_to_part_map: Dict[int, int] = {}  # Maps face hash to part index
-        self.part_selected_faces: Dict[int, any] = (
-            {}
-        )
+        self.part_selected_faces: Dict[int, any] = {}
         self.ais_base_colors: Dict = {}
-
 
     def set_selection_label(self, label):
         """Set reference to the selection count label."""
@@ -115,6 +118,7 @@ class SelectionManager:
             if original_color is None:
                 logger.warning(f"No base color registered for AIS object {parent_ais}")
                 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
+
                 original_color = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB)
 
             # Store face object if not already stored
@@ -360,7 +364,6 @@ class SelectionManager:
         """Get number of currently selected faces."""
         return len(self.selected_faces)
 
-
     def hide_selections_for_parts(self, ais_shapes_to_hide, root):
         """
         Hide selections for specific parts (when parts are hidden).
@@ -370,7 +373,9 @@ class SelectionManager:
         faces_to_remove = []
 
         # Hide selected faces that belong to hidden parts
-        for face_hash, (parent_ais, original_color) in list(self.selected_faces.items()):
+        for face_hash, (parent_ais, original_color) in list(
+            self.selected_faces.items()
+        ):
             if parent_ais in ais_shapes_to_hide:
                 face_obj = self.face_to_faceobj_map.get(face_hash)
                 if face_obj is not None:
@@ -671,17 +676,25 @@ class SelectionManager:
                     # Get the original color from the base color map
                     original_color = self.ais_base_colors.get(part.ais_colored_shape)
                     if original_color is None:
-                        logger.warning(f"No base color registered for AIS object {part.ais_colored_shape}")
+                        logger.warning(
+                            f"No base color registered for AIS object {part.ais_colored_shape}"
+                        )
                         from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
+
                         original_color = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB)
 
                     # Apply highlight color to the selected face
-                    part.ais_colored_shape.SetCustomColor(selected_face, self._get_selected_color())
+                    part.ais_colored_shape.SetCustomColor(
+                        selected_face, self._get_selected_color()
+                    )
                     # Redisplay to apply the color (deduplicate later if needed)
                     self.display.Context.Redisplay(part.ais_colored_shape, True)
 
                     # Store the parent and original color in selected faces
-                    self.selected_faces[face_hash] = (part.ais_colored_shape, original_color)
+                    self.selected_faces[face_hash] = (
+                        part.ais_colored_shape,
+                        original_color,
+                    )
 
                     # Store face to part mapping and part's selected face
                     self.face_to_part_map[face_hash] = idx

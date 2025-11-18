@@ -70,7 +70,7 @@ class ExplodeManager:
             root: Tkinter root for UI updates
         """
         from .log_manager import logger
-        
+
         self.explosion_factor = max(0.0, min(5.0, factor))
 
         if len(self.parts_data) == 0:
