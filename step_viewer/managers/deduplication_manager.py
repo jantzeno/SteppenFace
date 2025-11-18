@@ -48,8 +48,8 @@ class DeduplicationManager:
         shape_signatures = []
         self.hidden_indices.clear()
 
-        for i, (solid, color, ais_shape) in enumerate(parts_list):
-            signature = self._compute_shape_signature(solid)
+        for i, part in enumerate(parts_list):
+            signature = self._compute_shape_signature(part.shape)
 
             # Check if this signature matches any existing unique part
             match_found = False
@@ -65,7 +65,7 @@ class DeduplicationManager:
 
             if not match_found:
                 # This is a unique part
-                unique_parts.append((solid, color, ais_shape))
+                unique_parts.append(part)
                 shape_signatures.append(signature)
 
         logger.info(

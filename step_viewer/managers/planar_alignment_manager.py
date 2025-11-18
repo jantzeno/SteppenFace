@@ -18,7 +18,7 @@ from OCC.Core.BRepBndLib import brepbndlib
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 
 from .log_manager import logger
-from .part_helper import Part
+from .part_manager import Part
 
 class PlanarAlignmentManager:
     """Manages planar alignment - laying parts flat on a surface."""
@@ -72,24 +72,32 @@ class PlanarAlignmentManager:
         return self.is_aligned
 
     def _apply_planar_alignment(self, display, root):
-        """Apply planar alignment to all parts - lay flat and arrange in grid."""
+        """Apply planar alignment to all parts - lay flat and arrange in grid.
+
+        The routine does two passes:
+        1) Rotate each part so its chosen planar face faces +Z and record its
+           rotated bounding box.
+        2) Arrange the rotated parts in a simple grid on Z=0 and apply the
+           combined rotation+translation to the AIS object for display.
+        """
+
         self.original_transformations = []
         self.planar_rotation_transformations = []
 
-        # First pass: rotate parts to lay flat and calculate their bounding boxes
-        part_transforms = []
+        # First pass: compute rotation per part to make a chosen planar face point +Z
+        part_transforms: List[dict] = []
 
         for part_idx, part in enumerate(self.parts_list):
             solid = part.shape
-            ais_shape = part.ais_shape
+            ais_shape = part.ais_colored_shape
 
-            # Store original transformation
+            # Store original transformation for later reset
             if ais_shape.HasTransformation():
                 self.original_transformations.append(ais_shape.LocalTransformation())
             else:
                 self.original_transformations.append(None)
 
-            # Use selected face if available, otherwise find the largest planar face
+            # Choose face: user-selected face or largest planar face
             if part_idx in self.selected_faces_per_part:
                 selected_face = self.selected_faces_per_part[part_idx]
                 largest_face_info = self._get_face_info(selected_face)
@@ -99,152 +107,105 @@ class PlanarAlignmentManager:
             if largest_face_info:
                 face, area, normal, center = largest_face_info
 
-                # Create transformation to align face with XY plane
+                # Align face normal to +Z
                 z_axis = gp_Dir(0, 0, 1)
-
-                # Create direction from normal
                 normal_dir = gp_Dir(normal[0], normal[1], normal[2])
-
-                # For selected faces, we want them to point upward (+Z) after transformation
-                # Face normals can be arbitrary, so we need to check which way to flip
-                # If the normal already points generally upward (Z > 0), keep it
-                # If it points downward (Z < 0), reverse it so it will point upward
                 if normal_dir.Z() < 0:
                     normal_dir.Reverse()
 
-                # Create rotation to align normal with Z axis
                 rotation_trsf = gp_Trsf()
-
-                # Only rotate if not already aligned
                 if abs(normal_dir.Z() - 1.0) > 0.001:
-                    rotation_axis = gp_Vec(normal_dir.XYZ()).Crossed(
-                        gp_Vec(z_axis.XYZ())
-                    )
+                    rotation_axis = gp_Vec(normal_dir.XYZ()).Crossed(gp_Vec(z_axis.XYZ()))
                     if rotation_axis.Magnitude() > 0.001:
                         rotation_axis.Normalize()
-                        axis = gp_Ax1(
-                            gp_Pnt(center[0], center[1], center[2]),
-                            gp_Dir(rotation_axis.XYZ()),
-                        )
+                        axis = gp_Ax1(gp_Pnt(center[0], center[1], center[2]), gp_Dir(rotation_axis.XYZ()))
                         angle = np.arccos(np.clip(normal_dir.Dot(z_axis), -1.0, 1.0))
                         rotation_trsf.SetRotation(axis, angle)
 
-                # Calculate bounding box after rotation
-                transformed_shape = BRepBuilderAPI_Transform(
-                    solid, rotation_trsf, False
-                ).Shape()
+                # Check and flip so the face ends up on the top side
+                transformed_shape = BRepBuilderAPI_Transform(solid, rotation_trsf, False).Shape()
                 bbox = Bnd_Box()
                 brepbndlib.Add(transformed_shape, bbox)
                 xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
 
-                # Check if the selected face ended up on top or bottom
-                # Transform the face center to see where it is in the rotated part
                 face_center_pnt = gp_Pnt(center[0], center[1], center[2])
                 face_center_pnt.Transform(rotation_trsf)
                 face_z = face_center_pnt.Z()
-
-                # The face should be near the top (zmax) or bottom (zmin) of the bounding box
-                # If it's near the bottom, flip the part 180° around X axis
                 part_center_z = (zmin + zmax) / 2.0
-                is_on_bottom = face_z < part_center_z
-
-                if is_on_bottom:
-                    # Rotate 180° around X axis at the part center to flip top/bottom
+                if face_z < part_center_z:
+                    # flip 180deg around X to move face to top
                     flip_trsf = gp_Trsf()
-                    flip_center = gp_Pnt(
-                        (xmin + xmax) / 2, (ymin + ymax) / 2, part_center_z
-                    )
+                    flip_center = gp_Pnt((xmin + xmax) / 2, (ymin + ymax) / 2, part_center_z)
                     flip_trsf.SetRotation(gp_Ax1(flip_center, gp_Dir(1, 0, 0)), np.pi)
                     rotation_trsf = flip_trsf.Multiplied(rotation_trsf)
 
-                    # Recalculate bounding box after flip
-                    transformed_shape = BRepBuilderAPI_Transform(
-                        solid, rotation_trsf, False
-                    ).Shape()
-                    bbox = Bnd_Box()
-                    brepbndlib.Add(transformed_shape, bbox)
-                    xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
+                # Record transform and rotated bbox
+                transformed_shape = BRepBuilderAPI_Transform(solid, rotation_trsf, False).Shape()
+                bbox = Bnd_Box()
+                brepbndlib.Add(transformed_shape, bbox)
+                xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
 
-                part_transforms.append(
-                    {
-                        "rotation_trsf": rotation_trsf,
-                        "bbox": (xmin, ymin, zmin, xmax, ymax, zmax),
-                        "width": xmax - xmin,
-                        "height": ymax - ymin,
-                        "depth": zmax - zmin,
-                        "ais_shape": ais_shape,
-                    }
-                )
-                # Store planar-only rotation transformation for later use in SVG export
+                part_transforms.append({
+                    "rotation_trsf": rotation_trsf,
+                    "bbox": (xmin, ymin, zmin, xmax, ymax, zmax),
+                    "width": xmax - xmin,
+                    "height": ymax - ymin,
+                    "depth": zmax - zmin,
+                    "ais_shape": ais_shape,
+                })
                 self.planar_rotation_transformations.append(rotation_trsf)
             else:
-                # No planar face found, store identity transform
-                part_transforms.append(
-                    {
-                        "rotation_trsf": gp_Trsf(),
-                        "bbox": (0, 0, 0, 0, 0, 0),
-                        "width": 0,
-                        "height": 0,
-                        "depth": 0,
-                        "ais_shape": ais_shape,
-                    }
-                )
-                # Store identity transformation for parts with no planar face
+                # No planar face found -> identity
+                part_transforms.append({
+                    "rotation_trsf": gp_Trsf(),
+                    "bbox": (0, 0, 0, 0, 0, 0),
+                    "width": 0,
+                    "height": 0,
+                    "depth": 0,
+                    "ais_shape": ais_shape,
+                })
                 self.planar_rotation_transformations.append(gp_Trsf())
 
-        # Second pass: arrange parts in a grid layout
-        grid_cols = math.ceil(math.sqrt(len(part_transforms)))
-        current_row = 0
-        current_col = 0
-        row_heights = []
-        col_widths = [0] * grid_cols
+        # Second pass: arrange parts in a grid on Z=0
+        grid_cols = math.ceil(math.sqrt(len(part_transforms))) if part_transforms else 1
+        row_heights: List[float] = []
+        col_widths: List[float] = [0.0] * grid_cols
 
-        # Calculate grid dimensions
+        # compute column widths and row heights
         for i, pt in enumerate(part_transforms):
             col = i % grid_cols
             row = i // grid_cols
-
             if row >= len(row_heights):
-                row_heights.append(0)
-
+                row_heights.append(0.0)
             row_heights[row] = max(row_heights[row], pt["height"])
             col_widths[col] = max(col_widths[col], pt["width"])
 
-        # Add spacing between parts (10% of average size)
-        avg_width = sum(col_widths) / len(col_widths) if col_widths else 10
+        # spacing and placement
+        avg_width = sum(col_widths) / len(col_widths) if col_widths else 10.0
         spacing = avg_width * 0.2
 
-        # Place parts in grid
         for i, pt in enumerate(part_transforms):
             col = i % grid_cols
             row = i // grid_cols
 
-            # Calculate position based on grid
             x_offset = sum(col_widths[:col]) + spacing * col
             y_offset = sum(row_heights[:row]) + spacing * row
 
-            # Get bbox info
             xmin, ymin, zmin, xmax, ymax, zmax = pt["bbox"]
 
-            # Create translation to move part to grid position and Z=0
             translation_trsf = gp_Trsf()
-            translation_trsf.SetTranslation(
-                gp_Vec(x_offset - xmin, y_offset - ymin, -zmin)  # Move to Z=0
-            )
+            translation_trsf.SetTranslation(gp_Vec(x_offset - xmin, y_offset - ymin, -zmin))
 
-            # Combine transformations: translation * rotation (apply rotation first, then translation)
             final_trsf = translation_trsf
             final_trsf.Multiply(pt["rotation_trsf"])
 
-            # Apply transformation
             pt["ais_shape"].SetLocalTransformation(final_trsf)
             display.Context.Redisplay(pt["ais_shape"], True)
 
-        # Show plates
+        # Show plates (if any)
         if self.plate_manager:
             self.plate_manager.show_all_plates(display)
 
-        # Refresh display and fit view
         display.Context.UpdateCurrentViewer()
         display.FitAll()
         root.update_idletasks()
@@ -254,7 +215,7 @@ class PlanarAlignmentManager:
     def _reset_alignment(self, display, root):
         """Reset parts to their original orientations."""
         for i, part in enumerate(self.parts_list):
-            ais_shape = part.ais_shape
+            ais_shape = part.ais_colored_shape
 
             if i < len(self.original_transformations):
                 original_trsf = self.original_transformations[i]

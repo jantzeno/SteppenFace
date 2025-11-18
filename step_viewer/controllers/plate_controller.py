@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import simpledialog, messagebox, filedialog
 from pathlib import Path
 from typing import List
-from ..managers.part_helper import Part
+from ..managers.part_manager import Part
 from ..managers.log_manager import logger
 from ..managers.plate_arrangement_manager import PlateArrangementManager
 from ..managers.units_manager import UnitSystem

@@ -508,8 +508,8 @@ class UIManager:
             open=True,
         )
 
-        for i, (solid, color, ais_shape) in enumerate(parts_list):
-            r, g, b = color
+        for i, part in enumerate(parts_list):
+            r, g, b = part.pallete
             hex_color = f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
             # Check if this part is hidden as a duplicate

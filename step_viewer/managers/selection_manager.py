@@ -173,7 +173,7 @@ class SelectionManager:
         Args:
             x, y: screen coordinates
             view: the OCC view object
-            parts_list: optional list of (solid, color, ais_shape) tuples to
+            parts_list: optional list of Part namedtuples to
                         resolve part indices locally
 
         Returns:
@@ -212,11 +212,11 @@ class SelectionManager:
             try:
                 if parts_list is not None:
                     # find the part index for this AIS object
-                    for idx, (solid, _color, ais_shape) in enumerate(parts_list):
-                        if ais_shape == parent_ais:
+                    for idx, part in enumerate(parts_list):
+                        if part.ais_colored_shape == parent_ais:
                             part_idx = idx
                             # enumerate faces within this solid to find per-part index
-                            exp = TopExp_Explorer(solid, TopAbs_FACE)
+                            exp = TopExp_Explorer(part.shape, TopAbs_FACE)
                             num = 0
                             while exp.More():
                                 num += 1
@@ -243,8 +243,8 @@ class SelectionManager:
                     try:
                         global_face_map = {}
                         global_idx = 1
-                        for s, _c, _a in parts_list:
-                            exp_g = TopExp_Explorer(s, TopAbs_FACE)
+                        for part in parts_list:
+                            exp_g = TopExp_Explorer(part.shape, TopAbs_FACE)
                             while exp_g.More():
                                 f = exp_g.Current()
                                 try:
@@ -443,7 +443,7 @@ class SelectionManager:
         assembly center (external-facing for outer parts, internal-facing for inner parts).
 
         Args:
-            parts_list: List of (solid, color, ais_shape) tuples
+            parts_list: List of Part namedtuples
             root: Tkinter root for UI updates
         """
         if not self.is_selection_mode:
@@ -461,7 +461,7 @@ class SelectionManager:
         assembly_origin = self._calculate_assembly_center(parts_list)
 
         # Get all solids for occlusion checking (entire assembly)
-        all_solids = [s for s, _, _ in parts_list]
+        all_solids = [part.shape for part in parts_list]
 
         # Build a global face index map (1-based) across the provided parts_list
         # so we can report a global STEP-style face number that matches a full
@@ -469,8 +469,8 @@ class SelectionManager:
         # object (stable within this run) to its global index.
         global_face_map = {}
         global_idx = 1
-        for s, _, _ in parts_list:
-            exp_g = TopExp_Explorer(s, TopAbs_FACE)
+        for part in parts_list:
+            exp_g = TopExp_Explorer(part.shape, TopAbs_FACE)
             while exp_g.More():
                 f = exp_g.Current()
                 try:
@@ -486,8 +486,8 @@ class SelectionManager:
         # object (stable within this run) to its global index.
         global_face_map = {}
         global_idx = 1
-        for s, _, _ in parts_list:
-            exp_g = TopExp_Explorer(s, TopAbs_FACE)
+        for part in parts_list:
+            exp_g = TopExp_Explorer(part.shape, TopAbs_FACE)
             while exp_g.More():
                 f = exp_g.Current()
                 try:
@@ -498,10 +498,10 @@ class SelectionManager:
                 global_idx += 1
                 exp_g.Next()
 
-        for idx, (solid, color, ais_shape) in enumerate(parts_list):
+        for idx, part in enumerate(parts_list):
             # Find all faces and their areas
             face_areas = []
-            explorer = TopExp_Explorer(solid, TopAbs_FACE)
+            explorer = TopExp_Explorer(part.shape, TopAbs_FACE)
 
             while explorer.More():
                 face = explorer.Current()
@@ -528,7 +528,7 @@ class SelectionManager:
 
             # Get part center for orientation checking
             part_props = GProp_GProps()
-            brepgprop.VolumeProperties(solid, part_props)
+            brepgprop.VolumeProperties(part.shape, part_props)
             part_center = part_props.CentreOfMass()
 
             # We'll test up to 2 largest faces and score them
@@ -630,7 +630,7 @@ class SelectionManager:
                 try:
                     # per-solid index (1-based)
                     step_face_number = None
-                    explorer_num = TopExp_Explorer(solid, TopAbs_FACE)
+                    explorer_num = TopExp_Explorer(part.shape, TopAbs_FACE)
                     num = 0
                     while explorer_num.More():
                         num += 1
@@ -673,19 +673,19 @@ class SelectionManager:
                 if not is_already_selected:
                     # Use SetCustomColor on parent AIS_ColoredShape instead of creating new shape
                     # Get the original color from the base color map
-                    original_color = self.ais_base_colors.get(ais_shape)
+                    original_color = self.ais_base_colors.get(part.ais_colored_shape)
                     if original_color is None:
-                        logger.warning(f"No base color registered for AIS object {ais_shape}")
+                        logger.warning(f"No base color registered for AIS object {part.ais_colored_shape}")
                         from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
                         original_color = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB)
 
                     # Apply highlight color to the selected face
-                    ais_shape.SetCustomColor(selected_face, self._get_selected_color())
+                    part.ais_colored_shape.SetCustomColor(selected_face, self._get_selected_color())
                     # Redisplay to apply the color (deduplicate later if needed)
-                    self.display.Context.Redisplay(ais_shape, True)
+                    self.display.Context.Redisplay(part.ais_colored_shape, True)
 
                     # Store the parent and original color in selected faces
-                    self.selected_faces[face_hash] = (ais_shape, original_color)
+                    self.selected_faces[face_hash] = (part.ais_colored_shape, original_color)
 
                     # Store face to part mapping and part's selected face
                     self.face_to_part_map[face_hash] = idx
@@ -723,9 +723,9 @@ class SelectionManager:
         total_z = 0.0
         count = 0
 
-        for solid, _, _ in parts_list:
+        for part in parts_list:
             props = GProp_GProps()
-            brepgprop.VolumeProperties(solid, props)
+            brepgprop.VolumeProperties(part.shape, props)
             center = props.CentreOfMass()
             total_x += center.X()
             total_y += center.Y()

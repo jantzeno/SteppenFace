@@ -283,10 +283,10 @@ class PlateManager:
             plate.part_indices.clear()
 
         # Associate each part based on its position
-        for part_idx, (solid, color, ais_shape) in enumerate(parts_list):
+        for part_idx, part in enumerate(parts_list):
             # Get the bounding box of the part
             bbox = Bnd_Box()
-            brepbndlib.Add(solid, bbox, True)
+            brepbndlib.Add(part.shape, bbox, True)
 
             if not bbox.IsVoid():
                 xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
@@ -296,8 +296,8 @@ class PlateManager:
                 center_y = (ymin + ymax) / 2.0
 
                 # Apply transformation if present
-                if ais_shape.HasTransformation():
-                    trsf = ais_shape.LocalTransformation()
+                if part.ais_colored_shape.HasTransformation():
+                    trsf = part.ais_colored_shape.LocalTransformation()
                     point = gp_Pnt(center_x, center_y, 0.0)
                     point.Transform(trsf)
                     center_x = point.X()

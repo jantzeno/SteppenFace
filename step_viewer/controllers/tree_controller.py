@@ -68,21 +68,21 @@ class TreeController:
         if part_idx in self.highlighted_parts:
             return
 
-        _, color, ais_shape = self.parts_list[part_idx]
+        part = self.parts_list[part_idx]
 
         # Store original color
-        original_color = Quantity_Color(color[0], color[1], color[2], Quantity_TOC_RGB)
+        original_color = Quantity_Color(part.pallete[0], part.pallete[1], part.pallete[2], Quantity_TOC_RGB)
 
         # Create bright highlight color (yellow)
         highlight_color = Quantity_Color(1.0, 1.0, 0.0, Quantity_TOC_RGB)
 
         # Apply highlight
-        self.display.Context.SetColor(ais_shape, highlight_color, False)
+        self.display.Context.SetColor(part.ais_colored_shape, highlight_color, False)
         self.display.Context.UpdateCurrentViewer()
         self.display.Repaint()
 
         # Store for later restoration
-        self.highlighted_parts[part_idx] = (ais_shape, original_color)
+        self.highlighted_parts[part_idx] = (part.ais_colored_shape, original_color)
 
         # Update tree item to show highlighted state
         self.update_tree_highlight_indicator(part_idx, True)
@@ -168,8 +168,8 @@ class TreeController:
                         self.ui.parts_tree.item(item, text=new_text)
                         # Restore original color (need to recalculate from parts_list)
                         if part_idx < len(self.parts_list):
-                            _, color, _ = self.parts_list[part_idx]
-                            r, g, b = color
+                            part = self.parts_list[part_idx]
+                            r, g, b = part.pallete
                             hex_color = (
                                 f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
                             )

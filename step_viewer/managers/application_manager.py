@@ -79,9 +79,9 @@ class ApplicationManager:
         # Register base colors for all parts in the selection manager
         # This is needed for proper face selection highlighting
         from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
-        for solid, color_tuple, ais_shape in self.parts_list:
-            color = Quantity_Color(color_tuple[0], color_tuple[1], color_tuple[2], Quantity_TOC_RGB)
-            self.selection_manager.register_part_base_color(ais_shape, color)
+        for part in self.parts_list:
+            color = Quantity_Color(part.pallete[0], part.pallete[1], part.pallete[2], Quantity_TOC_RGB)
+            self.selection_manager.register_part_base_color(part.ais_colored_shape, color)
 
         # Configure display settings (must be after display_model to activate face selection)
         self.display_manager.configure_display(self.parts_list, self.color_manager)

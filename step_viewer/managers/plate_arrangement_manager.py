@@ -10,7 +10,7 @@ import math
 from OCC.Core.gp import gp_Trsf, gp_Vec, gp_Pnt
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
-from step_viewer.managers.part_helper import Part
+from step_viewer.managers.part_manager import Part
 
 from .log_manager import logger
 from ..config import ViewerConfig
@@ -324,11 +324,11 @@ class PlateArrangementManager:
         """
         rectangles = []
 
-        for part_idx, (solid, color, ais_shape) in enumerate(parts_list):
+        for part_idx, part in enumerate(parts_list):
             try:
                 # Get bounding box
                 bbox = Bnd_Box()
-                brepbndlib.Add(solid, bbox, True)
+                brepbndlib.Add(part.shape, bbox, True)
 
                 if bbox.IsVoid():
                     logger.warning(f"Part {part_idx} has empty bounding box, skipping")
@@ -337,8 +337,8 @@ class PlateArrangementManager:
                 xmin, ymin, zmin, xmax, ymax, zmax = bbox.Get()
 
                 # Apply transformation if present
-                if ais_shape.HasTransformation():
-                    trsf = ais_shape.LocalTransformation()
+                if part.ais_colored_shape.HasTransformation():
+                    trsf = part.ais_colored_shape.LocalTransformation()
 
                     # Transform all 8 corners of the bounding box
                     corners = [
@@ -678,7 +678,7 @@ class PlateArrangementManager:
             if result.part_idx >= len(parts_list):
                 continue
 
-            solid, color, ais_shape = parts_list[result.part_idx]
+            part = parts_list[result.part_idx]
             plate = self.plate_manager.get_plate_by_id(result.plate_id)
 
             if not plate:
@@ -689,8 +689,8 @@ class PlateArrangementManager:
 
             # Get current transformation (from planar alignment)
             current_trsf = (
-                ais_shape.LocalTransformation()
-                if ais_shape.HasTransformation()
+                part.ais_colored_shape.LocalTransformation()
+                if part.ais_colored_shape.HasTransformation()
                 else gp_Trsf()
             )
 
@@ -698,7 +698,7 @@ class PlateArrangementManager:
             from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 
             transformed_solid = BRepBuilderAPI_Transform(
-                solid, current_trsf, False
+                part.shape, current_trsf, False
             ).Shape()
             bbox = Bnd_Box()
             brepbndlib.Add(transformed_solid, bbox, True)
@@ -765,7 +765,7 @@ class PlateArrangementManager:
 
                 # Recalculate bounding box after rotation
                 rotated_solid = BRepBuilderAPI_Transform(
-                    solid, working_trsf, False
+                    part.shape, working_trsf, False
                 ).Shape()
                 rotated_bbox = Bnd_Box()
                 brepbndlib.Add(rotated_solid, rotated_bbox, True)
@@ -801,12 +801,12 @@ class PlateArrangementManager:
             final_trsf = translation_trsf.Multiplied(working_trsf)
 
             # Apply final transformation
-            ais_shape.SetLocalTransformation(final_trsf)
-            display.Context.Redisplay(ais_shape, False)
+            part.ais_colored_shape.SetLocalTransformation(final_trsf)
+            display.Context.Redisplay(part.ais_colored_shape, False)
 
             # Verify final position
             final_transformed_solid = BRepBuilderAPI_Transform(
-                solid, final_trsf, False
+                part.shape, final_trsf, False
             ).Shape()
             final_bbox = Bnd_Box()
             brepbndlib.Add(final_transformed_solid, final_bbox, True)

@@ -5,7 +5,7 @@ Display manager for initializing and configuring the 3D display.
 import tkinter as tk
 import random
 from typing import List, Tuple, Any
-from .part_helper import Part
+from .part_manager import Part
 
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB, Quantity_TOC_sRGB
 from OCC.Core.Aspect import Aspect_GFM_VER, Aspect_TypeOfLine, Aspect_TOTP_RIGHT_LOWER
@@ -66,7 +66,7 @@ class CanvasManager:
             planar_alignment_manager: Manager for planar alignment
 
         Returns:
-            List of (solid, color_tuple, ais_colored_shape) tuples
+            List of Part namedtuples
         """
         from ..controllers.material_renderer import MaterialRenderer
 
@@ -90,7 +90,7 @@ class CanvasManager:
                 Part(
                 shape=shape,
                 pallete=palette[0],
-                ais_shape=ais_colored_shape)
+                ais_colored_shape=ais_colored_shape)
                 )
         else:
             random.shuffle(palette)
@@ -108,7 +108,7 @@ class CanvasManager:
                     Part(
                         shape=solid,
                         pallete=(r, g, b),
-                        ais_shape=ais_colored_shape))
+                        ais_colored_shape=ais_colored_shape))
 
             logger.info(f"Assigned colors to {len(solids)} solid(s)")
 
@@ -127,7 +127,7 @@ class CanvasManager:
         Configure display settings (background, antialiasing, selection).
 
         Args:
-            parts_list: Part of (solid, color, ais_shape)
+            parts_list: List of Part namedtuples
             color_manager: Manager for color configuration
         """
         # Background color
@@ -189,9 +189,9 @@ class CanvasManager:
             logger.warning(f"Could not configure selection style: {e}")
 
         # Enable face selection for all parts
-        for solid, color, ais_shape in parts_list:
-            self.display.Context.Activate(ais_shape, 4, False)  # 4 = TopAbs_FACE
-            ais_shape.SetHilightMode(1)
+        for part in parts_list:
+            self.display.Context.Activate(part.ais_colored_shape, 4, False)  # 4 = TopAbs_FACE
+            part.ais_colored_shape.SetHilightMode(1)
 
     def setup_resize_handler(self):
         """Setup resize event handler with debouncing."""

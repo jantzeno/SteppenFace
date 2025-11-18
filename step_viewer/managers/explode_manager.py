@@ -8,7 +8,7 @@ import numpy as np
 from OCC.Core.gp import gp_Trsf, gp_Vec
 from OCC.Core.GProp import GProp_GProps
 from OCC.Core.BRepGProp import brepgprop
-from .part_helper import Part
+from .part_manager import Part
 
 
 class ExplodeManager:
@@ -31,18 +31,16 @@ class ExplodeManager:
         self.parts_data = []
         centroids = []
 
-        for solid, color, ais_shape in parts_list:
+        for part in parts_list:
             # Calculate centroid of the solid
             props = GProp_GProps()
-            brepgprop.VolumeProperties(solid, props)
+            brepgprop.VolumeProperties(part.shape, props)
             centroid = props.CentreOfMass()
             centroid_tuple = (centroid.X(), centroid.Y(), centroid.Z())
 
             self.parts_data.append(
                 {
-                    "solid": solid,
-                    "color": color,
-                    "ais_shape": ais_shape,
+                    "part": part,
                     "centroid": centroid_tuple,
                 }
             )
@@ -113,7 +111,7 @@ class ExplodeManager:
         # This creates equal spacing between consecutive parts
         for i, item in enumerate(parts_with_distance):
             part_data = item["part_data"]
-            ais_shape = part_data["ais_shape"]
+            part = part_data["part"]
             unit_dir = item["unit_direction"]
 
             # Displacement increases with rank: part i gets i * gap_size displacement
@@ -131,10 +129,10 @@ class ExplodeManager:
             )
 
             # Apply transformation
-            ais_shape.SetLocalTransformation(trsf)
+            part.ais_colored_shape.SetLocalTransformation(trsf)
 
             # Update display
-            display.Context.Redisplay(ais_shape, True)
+            display.Context.Redisplay(part.ais_colored_shape, True)
 
         # Refresh display
         display.Context.UpdateCurrentViewer()

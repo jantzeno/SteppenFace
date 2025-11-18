@@ -70,7 +70,7 @@ class FeatureController:
 
             # Collect AIS shapes that will be hidden
             hidden_indices = self.deduplication_manager.hidden_indices
-            ais_shapes_to_hide = [self.parts_list[i][2] for i in hidden_indices]
+            ais_shapes_to_hide = [self.parts_list[i].ais_colored_shape for i in hidden_indices]
 
             # Hide selections for parts that are about to be hidden
             self.hidden_selections = self.selection_manager.hide_selections_for_parts(
@@ -78,12 +78,12 @@ class FeatureController:
             )
 
             # Hide all parts first
-            for solid, color, ais_shape in self.parts_list:
-                self.display.Context.Erase(ais_shape, False)
+            for part in self.parts_list:
+                self.display.Context.Erase(part.ais_colored_shape, False)
 
             # Show only unique parts
-            for solid, color, ais_shape in unique_parts:
-                self.display.Context.Display(ais_shape, False)
+            for part in unique_parts:
+                self.display.Context.Display(part.ais_colored_shape, False)
 
             logger.info("Showing only unique parts (duplicates hidden)")
 
