@@ -25,8 +25,7 @@ class ExplodeManager:
         self.selection_manager = selection_manager
 
     def initialize_parts(self):
-
-        self.parts_data = []
+        self.parts_data: List[Part] = []
         parts_iter = self.part_manager.get_parts()
         centroids = []
 
