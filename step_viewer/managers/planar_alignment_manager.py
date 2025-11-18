@@ -96,7 +96,7 @@ class PlanarAlignmentManager:
                 selected_face = self.selected_faces_per_part[part_idx]
                 largest_face_info = self._get_face_info(selected_face)
             else:
-                largest_face_info = self._find_largest_planar_face(solid)
+                largest_face_info = self._find_largest_planar_face(part_idx)
 
             if largest_face_info:
                 face, area, normal, center = largest_face_info
@@ -252,13 +252,23 @@ class PlanarAlignmentManager:
 
     def _get_face_info(self, face) -> Optional[Tuple]:
         """
-        Get information about a face (area, normal, center).
+        Get information about a face (face namedtuple, area, normal, center).
+
+        Args:
+            face: Either a Face namedtuple or a TopoDS_Face
 
         Returns:
             Tuple of (face, area, normal, center) or None if face info cannot be determined
         """
         try:
-            # Calculate face area
+            from step_viewer.managers.part_manager import Face
+
+            # Check if it's already a Face namedtuple
+            if isinstance(face, Face):
+                # Extract info directly from Face namedtuple
+                return (face.shape, face.area, face.normal, face.centroid)
+
+            # Otherwise treat as TopoDS_Face and compute properties
             props = GProp_GProps()
             brepgprop.SurfaceProperties(face, props)
             area = props.Mass()
@@ -295,9 +305,12 @@ class PlanarAlignmentManager:
         except:
             return None
 
-    def _find_largest_planar_face(self, solid) -> Optional[Tuple]:
+    def _find_largest_planar_face(self, part_idx: int) -> Optional[Tuple]:
         """
-        Find the largest planar face of a solid.
+        Find the largest planar face in a part from PartManager.
+
+        Args:
+            part_idx: Index of the part
 
         Returns:
             Tuple of (face, area, normal, center) or None if no planar face found
@@ -307,34 +320,17 @@ class PlanarAlignmentManager:
         largest_normal = None
         largest_center = None
 
-        explorer = TopExp_Explorer(solid, TopAbs_FACE)
+        # Get faces for this part from PartManager
+        faces = self.part_manager.get_faces_for_part(part_idx)
 
-        while explorer.More():
-            face = explorer.Current()
-
+        for face in faces:
             # Check if face is planar
-            surface = BRepAdaptor_Surface(face)
-            if surface.GetType() == GeomAbs_Plane:
-                # Calculate face area
-                props = GProp_GProps()
-                brepgprop.SurfaceProperties(face, props)
-                area = props.Mass()
-
-                if area > largest_area:
-                    largest_area = area
-                    largest_face = face
-
-                    # Get plane normal
-                    plane = surface.Plane()
-                    axis = plane.Axis()
-                    normal_dir = axis.Direction()
-                    largest_normal = (normal_dir.X(), normal_dir.Y(), normal_dir.Z())
-
-                    # Get face center
-                    center = props.CentreOfMass()
-                    largest_center = (center.X(), center.Y(), center.Z())
-
-            explorer.Next()
+            if face.is_planar:
+                if face.area > largest_area:
+                    largest_area = face.area
+                    largest_face = face.shape
+                    largest_normal = face.normal
+                    largest_center = face.centroid
 
         if largest_face:
             return (largest_face, largest_area, largest_normal, largest_center)

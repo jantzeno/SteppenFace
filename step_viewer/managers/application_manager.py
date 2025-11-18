@@ -16,6 +16,7 @@ from . import (
     UIManager,
     CanvasManager,
 )
+from .plate_arrangement_manager import PlateArrangementManager
 from .part_manager import PartManager
 from .units_manager import UnitsManager, UnitSystem
 from .log_manager import logger
@@ -45,7 +46,7 @@ class ApplicationManager:
         self.exclusion_zone_controller = None
         self.part_manager = None
         self.plate_controller = None
-        self.planar_arrangement_manager = None
+        self.plate_arrangement_manager = None
         self.planar_alignment_manager = None
         self.event_manager = None
         self.feature_controller = None
@@ -140,11 +141,16 @@ class ApplicationManager:
             self.part_manager, self.plate_manager
         )
         self.selection_manager = SelectionManager(
-            self.display, self.color_manager, self.planar_alignment_manager, self.config
+            self.display,
+            self.color_manager,
+            self.part_manager,
+            self.planar_alignment_manager,
+            self.config,
         )
         self.selection_manager.set_selection_label(self.ui.selection_label)
         self.explode_manager = ExplodeManager(self.part_manager, self.selection_manager)
         self.deduplication_manager = DeduplicationManager()
+        self.plate_arrangement_manager = PlateArrangementManager(self.plate_manager)
 
         # Initialize controllers
         self.mouse_controller = MouseController(
@@ -199,7 +205,7 @@ class ApplicationManager:
             self.plate_manager,
             self.plate_manager,
             self.planar_alignment_manager,
-            self.planar_arrangement_manager,
+            self.plate_arrangement_manager,
             self.selection_manager,
             self.units_manager,
         )

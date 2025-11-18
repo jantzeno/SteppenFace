@@ -15,6 +15,7 @@ from OCC.Core.BRepIntCurveSurface import BRepIntCurveSurface_Inter
 import hashlib
 
 from ..managers.planar_alignment_manager import PlanarAlignmentManager
+from .part_manager import PartManager
 from ..config import ViewerConfig
 from .color_manager import ColorManager
 from .log_manager import logger
@@ -27,26 +28,28 @@ class SelectionManager:
         self,
         display,
         color_manager: ColorManager,
+        part_manager: PartManager,
         planar_alignment_manager: PlanarAlignmentManager,
-        config: ViewerConfig,
+        config: ViewerConfig
     ):
         self.display = display
         self.color_manager = color_manager
         self.planar_alignment_manager = planar_alignment_manager
         self.selection_label = None
         self.config = config
+        # Optional PartManager for precomputed face metadata
+        self.part_manager = part_manager
         self.is_selection_mode = False
 
         # Simple selection system: faces are either selected (orange) or unselected (base color)
-        # Maps face hash to tuple of (parent_AIS_ColoredShape, original_color)
-        self.selected_faces: Dict[int, Tuple[AIS_ColoredShape, object]] = {}
+        # Maps fingerprint to tuple of (parent_AIS_ColoredShape, original_color, Face namedtuple)
+        self.selected_faces: Dict[str, Tuple[AIS_ColoredShape, object]] = {}
 
-        # Map highlighted face hash to the original TopoDS_Face object
-        self.face_to_faceobj_map: Dict[int, object] = {}
-        # Stable 64-bit fingerprint (decimal string) for each face hash
-        self.face_fingerprint_map: Dict[int, str] = {}
-        self.face_to_part_map: Dict[int, int] = {}  # Maps face hash to part index
-        self.part_selected_faces: Dict[int, any] = {}
+        # Map fingerprint to the Face namedtuple
+        self.face_by_fingerprint: Dict[str, object] = {}
+
+        # Map part_index to selected Face for planar alignment
+        self.part_selected_faces: Dict[int, object] = {}
         self.ais_base_colors: Dict = {}
 
     def set_selection_label(self, label):
@@ -101,7 +104,6 @@ class SelectionManager:
                 return False
 
             detected_interactive = self.display.Context.DetectedInteractive()
-            face_hash = detected_shape.__hash__()
 
             if detected_interactive is None:
                 return False
@@ -113,6 +115,13 @@ class SelectionManager:
                 if parent_ais is None:
                     return False
 
+            # Find the Face namedtuple from PartManager
+            face = self.part_manager.find_face(detected_shape)
+            if face is None:
+                return False
+
+            fingerprint = face.fingerprint
+
             # Get original color from base color map
             original_color = self.ais_base_colors.get(parent_ais)
             if original_color is None:
@@ -121,25 +130,18 @@ class SelectionManager:
 
                 original_color = Quantity_Color(0.5, 0.5, 0.5, Quantity_TOC_RGB)
 
-            # Store face object if not already stored
-            if face_hash not in self.face_to_faceobj_map:
-                self.face_to_faceobj_map[face_hash] = detected_shape
-                try:
-                    fp = self._face_fingerprint(detected_shape)
-                    self.face_fingerprint_map[face_hash] = fp
-                    logger.debug(f"    selection fingerprint={fp}")
-                except Exception:
-                    pass
+            logger.debug(f"    selection fingerprint={fingerprint}")
 
             # Toggle selection: if already selected, deselect; otherwise select
-            if face_hash in self.selected_faces:
+            if fingerprint in self.selected_faces:
                 # Deselect: restore original color
                 parent_ais.SetCustomColor(detected_shape, original_color)
-                del self.selected_faces[face_hash]
+                del self.selected_faces[fingerprint]
                 action = "Deselected"
             else:
                 # Select: apply highlight color
-                self.selected_faces[face_hash] = (parent_ais, original_color)
+                self.selected_faces[fingerprint] = (parent_ais, original_color)
+                self.face_by_fingerprint[fingerprint] = face
                 parent_ais.SetCustomColor(detected_shape, self._get_selected_color())
                 action = "Selected"
 
@@ -200,77 +202,33 @@ class SelectionManager:
                 if parent_ais is None:
                     return False
 
-            # Compute a face hash (stable within run)
-            try:
-                face_hash = detected_shape.__hash__()
-            except Exception:
-                face_hash = id(detected_shape)
+            # Find the Face namedtuple
+            face = self.part_manager.find_face(detected_shape)
 
             # Try to compute a per-part face id if parts_list given
             part_idx = None
             face_id = None
+            fp = None
+            global_face_number = None
+
             try:
-                if parts_list is not None:
-                    # find the part index for this AIS object
-                    for idx, part in enumerate(parts_list):
-                        if part.ais_colored_shape == parent_ais:
-                            part_idx = idx
-                            # enumerate faces within this solid to find per-part index
-                            exp = TopExp_Explorer(part.shape, TopAbs_FACE)
-                            num = 0
-                            while exp.More():
-                                num += 1
-                                if exp.Current().IsSame(detected_shape):
-                                    face_id = num
-                                    break
-                                exp.Next()
+                if face is not None:
+                    part_idx = face.part_index
+                    fp = face.fingerprint
+                    global_face_number = face.global_index
+
+                    # Find per-part face id (1-based) within the part's faces
+                    faces_in_part = self.part_manager.get_faces_for_part(part_idx)
+                    for i, face_in_part in enumerate(faces_in_part):
+                        if face_in_part.shape.IsEqual(detected_shape):
+                            face_id = i + 1  # 1-based
                             break
-                # fallback: check any stored mapping
-                if part_idx is None:
-                    part_idx = self.face_to_part_map.get(face_hash)
-
-                # Try to get stable fingerprint if available
-                fp = self.face_fingerprint_map.get(face_hash)
-                if not fp:
-                    try:
-                        fp = self._face_fingerprint(detected_shape)
-                        # do not store here, just peek
-                    except Exception:
-                        fp = None
-                # Also compute a global face number (1-based) across all parts when parts_list provided
-                global_face_number = None
-                if parts_list is not None:
-                    try:
-                        global_face_map = {}
-                        global_idx = 1
-                        for part in parts_list:
-                            exp_g = TopExp_Explorer(part.shape, TopAbs_FACE)
-                            while exp_g.More():
-                                f = exp_g.Current()
-                                try:
-                                    key = f.__hash__()
-                                except Exception:
-                                    key = id(f)
-                                # Only set if not already set (first occurrence)
-                                if key not in global_face_map:
-                                    global_face_map[key] = global_idx
-                                global_idx += 1
-                                exp_g.Next()
-
-                        # lookup by same key method
-                        try:
-                            detected_key = detected_shape.__hash__()
-                        except Exception:
-                            detected_key = id(detected_shape)
-
-                        global_face_number = global_face_map.get(detected_key)
-                    except Exception:
-                        global_face_number = None
 
             except Exception:
                 part_idx = None
                 face_id = None
                 fp = None
+                global_face_number = None
 
             # Compute UI and file part numbers (1-based) for clearer logging
             ui_part_number = None
@@ -287,7 +245,7 @@ class SelectionManager:
 
             # Log requested information including both UI and file part numbers
             logger.info(
-                f"Clicked face -> ui_part: {ui_part_number}, file_part: {file_part_number}, face_id: {face_id}, global_face: {global_face_number}, face_hash: {face_hash}, fingerprint: {fp}"
+                f"Clicked face -> ui_part: {ui_part_number}, file_part: {file_part_number}, part_face_id: {face_id}, global_face: {global_face_number}, fingerprint: {fp}"
             )
 
             # Clear OCCT detection highlighting
@@ -304,19 +262,17 @@ class SelectionManager:
     def clear_all(self, root):
         """Clear all selected faces by restoring original colors."""
         # Restore original colors for all selected faces
-        for face_hash, (parent_ais, original_color) in self.selected_faces.items():
+        for fingerprint, (parent_ais, original_color) in self.selected_faces.items():
             try:
-                face_obj = self.face_to_faceobj_map.get(face_hash)
-                if face_obj is not None and parent_ais is not None:
-                    parent_ais.SetCustomColor(face_obj, original_color)
+                face = self.face_by_fingerprint.get(fingerprint)
+                if face is not None and parent_ais is not None:
+                    parent_ais.SetCustomColor(face.shape, original_color)
                     self.display.Context.Redisplay(parent_ais, True)
             except Exception as e:
-                logger.warning(f"Could not restore color for face {face_hash}: {e}")
+                logger.warning(f"Could not restore color for face {fingerprint}: {e}")
 
         self.selected_faces.clear()
-        self.face_to_faceobj_map.clear()
-        self.face_fingerprint_map.clear()
-        self.face_to_part_map.clear()
+        self.face_by_fingerprint.clear()
         self.part_selected_faces.clear()
 
         # Clear selected faces in planar alignment manager
@@ -340,17 +296,17 @@ class SelectionManager:
 
         # Update all selected faces with the new color
         redrawn_objects = set()
-        for face_hash, (parent_ais, _) in self.selected_faces.items():
+        for fingerprint, (parent_ais, _) in self.selected_faces.items():
             try:
-                face_obj = self.face_to_faceobj_map.get(face_hash)
-                if face_obj is not None and parent_ais is not None:
-                    parent_ais.SetCustomColor(face_obj, fill_color)
+                face = self.face_by_fingerprint.get(fingerprint)
+                if face is not None and parent_ais is not None:
+                    parent_ais.SetCustomColor(face.shape, fill_color)
                     # Only redisplay each object once (in case multiple faces on same object)
                     if id(parent_ais) not in redrawn_objects:
                         self.display.Context.Redisplay(parent_ais, True)
                         redrawn_objects.add(id(parent_ais))
             except Exception as e:
-                logger.warning(f"Could not update color for face {face_hash}: {e}")
+                logger.warning(f"Could not update color for face {fingerprint}: {e}")
 
         self.display.Context.UpdateCurrentViewer()
         self.display.Repaint()
@@ -373,25 +329,25 @@ class SelectionManager:
         faces_to_remove = []
 
         # Hide selected faces that belong to hidden parts
-        for face_hash, (parent_ais, original_color) in list(
+        for fingerprint, (parent_ais, original_color) in list(
             self.selected_faces.items()
         ):
             if parent_ais in ais_shapes_to_hide:
-                face_obj = self.face_to_faceobj_map.get(face_hash)
-                if face_obj is not None:
-                    hidden_selections[face_hash] = {
+                face = self.face_by_fingerprint.get(fingerprint)
+                if face is not None:
+                    hidden_selections[fingerprint] = {
                         "parent_ais": parent_ais,
                         "original_color": original_color,
-                        "face_obj": face_obj,
+                        "face": face,
                     }
                     # Restore original color to hide the highlight
-                    parent_ais.SetCustomColor(face_obj, original_color)
+                    parent_ais.SetCustomColor(face.shape, original_color)
                     self.display.Context.Redisplay(parent_ais, True)
-                    faces_to_remove.append(face_hash)
+                    faces_to_remove.append(fingerprint)
 
         # Remove from active selections
-        for face_hash in faces_to_remove:
-            del self.selected_faces[face_hash]
+        for fingerprint in faces_to_remove:
+            del self.selected_faces[fingerprint]
 
         # Update selection count label
         count = len(self.selected_faces)
@@ -409,21 +365,22 @@ class SelectionManager:
     def restore_hidden_selections(self, hidden_selections, root):
         """Restore previously hidden selections when parts become visible again."""
         redrawn_objects = set()
-        for face_hash, selection_data in hidden_selections.items():
+        for fingerprint, selection_data in hidden_selections.items():
             parent_ais = selection_data["parent_ais"]
-            face_obj = selection_data["face_obj"]
+            face = selection_data["face"]
             original_color = selection_data["original_color"]
 
             try:
                 # Restore as selected with highlight color
-                self.selected_faces[face_hash] = (parent_ais, original_color)
-                parent_ais.SetCustomColor(face_obj, self._get_selected_color())
+                self.selected_faces[fingerprint] = (parent_ais, original_color)
+                self.face_by_fingerprint[fingerprint] = face
+                parent_ais.SetCustomColor(face.shape, self._get_selected_color())
                 # Only redisplay each object once (in case multiple faces on same object)
                 if id(parent_ais) not in redrawn_objects:
                     self.display.Context.Redisplay(parent_ais, True)
                     redrawn_objects.add(id(parent_ais))
             except Exception as e:
-                logger.warning(f"Could not restore selection for face {face_hash}: {e}")
+                logger.warning(f"Could not restore selection for face {fingerprint}: {e}")
 
         # Update selection count label
         count = len(self.selected_faces)
@@ -464,53 +421,24 @@ class SelectionManager:
         # Get all solids for occlusion checking (entire assembly)
         all_solids = [part.shape for part in parts_list]
 
-        # Build a global face index map (1-based) across the provided parts_list
-        # so we can report a global STEP-style face number that matches a full
-        # dump of the assembly's faces. We map by the Python hash of the face
-        # object (stable within this run) to its global index.
+        
         global_face_map = {}
         global_idx = 1
         for part in parts_list:
             exp_g = TopExp_Explorer(part.shape, TopAbs_FACE)
             while exp_g.More():
                 f = exp_g.Current()
-                try:
-                    global_face_map[f.__hash__()] = global_idx
-                except Exception:
-                    global_face_map[id(f)] = global_idx
-                global_idx += 1
-                exp_g.Next()
-
-        # Build a global face index map (1-based) across the provided parts_list
-        # so we can report a global STEP-style face number that matches a full
-        # dump of the assembly's faces. We map by the Python hash of the face
-        # object (stable within this run) to its global index.
-        global_face_map = {}
-        global_idx = 1
-        for part in parts_list:
-            exp_g = TopExp_Explorer(part.shape, TopAbs_FACE)
-            while exp_g.More():
-                f = exp_g.Current()
-                try:
-                    global_face_map[f.__hash__()] = global_idx
-                except Exception:
-                    # fallback to using id() if __hash__ fails
-                    global_face_map[id(f)] = global_idx
+                key = f.__hash__() if hasattr(f, "__hash__") else id(f)
+                if key not in global_face_map:
+                    global_face_map[key] = global_idx
                 global_idx += 1
                 exp_g.Next()
 
         for idx, part in enumerate(parts_list):
-            # Find all faces and their areas
+            # Find all faces and their areas from the Face namedtuples
             face_areas = []
-            explorer = TopExp_Explorer(part.shape, TopAbs_FACE)
-
-            while explorer.More():
-                face = explorer.Current()
-                props = GProp_GProps()
-                brepgprop.SurfaceProperties(face, props)
-                area = props.Mass()
-                face_areas.append((area, face))
-                explorer.Next()
+            for face in part.faces:
+                face_areas.append((face.area, face))
 
             # Sort by area and take the two largest faces
             face_areas.sort(reverse=True, key=lambda x: x[0])
@@ -536,46 +464,28 @@ class SelectionManager:
             best_score = -1.0
             face_candidates = []
 
-            for face_idx, (area, face) in enumerate(face_areas[:2]):
+            for face_idx, (area, face_nt) in enumerate(face_areas[:2]):
                 # Check if this face is external relative to the entire assembly
                 is_external, debug_info, clear_count = (
-                    self._is_face_external_to_assembly(face, all_solids)
+                    self._is_face_external_to_assembly(face_nt.shape, all_solids)
                 )
 
                 if is_external:
-                    # Calculate outward score: how well does the face point away from origin?
-                    face_props = GProp_GProps()
-                    brepgprop.SurfaceProperties(face, face_props)
-                    face_center = face_props.CentreOfMass()
-
-                    # Get face normal
-                    surface = BRepAdaptor_Surface(face)
-                    u_min, u_max, v_min, v_max = (
-                        surface.FirstUParameter(),
-                        surface.LastUParameter(),
-                        surface.FirstVParameter(),
-                        surface.LastVParameter(),
-                    )
-                    u_mid = (u_min + u_max) / 2.0
-                    v_mid = (v_min + v_max) / 2.0
-
-                    pnt = gp_Pnt()
-                    vec_u = gp_Vec()
-                    vec_v = gp_Vec()
-                    surface.D1(u_mid, v_mid, pnt, vec_u, vec_v)
-                    normal = vec_u.Crossed(vec_v)
+                    # Use properties from Face namedtuple
+                    face_center_gp = gp_Pnt(face_nt.centroid[0], face_nt.centroid[1], face_nt.centroid[2])
+                    normal_vec = gp_Vec(face_nt.normal[0], face_nt.normal[1], face_nt.normal[2])
 
                     outward_score = 0.0
-                    if normal.Magnitude() > 1e-7:
-                        normal.Normalize()
+                    if normal_vec.Magnitude() > 1e-7:
+                        normal_vec.Normalize()
                         # Vector from origin to face center
-                        to_face = gp_Vec(assembly_origin, face_center)
+                        to_face = gp_Vec(assembly_origin, face_center_gp)
                         if to_face.Magnitude() > 1e-7:
                             to_face.Normalize()
                             # Positive dot product means normal points away from origin (outward)
                             # Use max of normal and -normal to handle arbitrary normal direction
                             outward_score = max(
-                                normal.Dot(to_face), -normal.Dot(to_face)
+                                normal_vec.Dot(to_face), -normal_vec.Dot(to_face)
                             )
 
                     # Composite score: clearness (2 or 1) * 1000 + outward_score (0-1) * 100
@@ -584,7 +494,7 @@ class SelectionManager:
 
                     face_candidates.append(
                         (
-                            face,
+                            face_nt,
                             area,
                             clear_count,
                             outward_score,
@@ -627,49 +537,17 @@ class SelectionManager:
 
             # Add the selected face to highlights
             if selected_face is not None:
-                # Determine the face index in the STEP/solids ordering for debug
-                try:
-                    # per-solid index (1-based)
-                    step_face_number = None
-                    explorer_num = TopExp_Explorer(part.shape, TopAbs_FACE)
-                    num = 0
-                    while explorer_num.More():
-                        num += 1
-                        if explorer_num.Current().IsSame(selected_face):
-                            step_face_number = num
-                            break
-                        explorer_num.Next()
-                except Exception:
-                    step_face_number = None
-
-                try:
-                    try:
-                        face_hash = selected_face.__hash__()
-                    except Exception:
-                        face_hash = id(selected_face)
-                    global_face_number = global_face_map.get(face_hash, None)
-                except Exception:
-                    face_hash = None
-                    global_face_number = None
+                # selected_face is now a Face namedtuple
+                fingerprint = selected_face.fingerprint
+                global_face_number = selected_face.global_index
 
                 logger.info(
-                    f"    -> Selected STEP face number (per-part): {step_face_number} (part index {idx}), global: {global_face_number}, face_hash: {face_hash}"
+                    f"    -> Selected face (per-part): {selected_face.part_index + 1} (part index {idx}), global: {global_face_number}"
                 )
-                # Compute a stable fingerprint for cross-run correlation and store mapping
-                try:
-                    fp = self._face_fingerprint(selected_face)
-                    try:
-                        self.face_fingerprint_map[face_hash] = fp
-                        self.face_to_faceobj_map[face_hash] = selected_face
-                    except Exception:
-                        pass
-                    logger.info(f"        fingerprint={fp}")
-                except Exception:
-                    fp = None
-                face_hash = selected_face.__hash__()
+                logger.info(f"        fingerprint={fingerprint}")
 
                 # Only add if not already selected
-                is_already_selected = face_hash in self.selected_faces
+                is_already_selected = fingerprint in self.selected_faces
 
                 if not is_already_selected:
                     # Use SetCustomColor on parent AIS_ColoredShape instead of creating new shape
@@ -685,23 +563,22 @@ class SelectionManager:
 
                     # Apply highlight color to the selected face
                     part.ais_colored_shape.SetCustomColor(
-                        selected_face, self._get_selected_color()
+                        selected_face.shape, self._get_selected_color()
                     )
                     # Redisplay to apply the color (deduplicate later if needed)
                     self.display.Context.Redisplay(part.ais_colored_shape, True)
 
                     # Store the parent and original color in selected faces
-                    self.selected_faces[face_hash] = (
+                    self.selected_faces[fingerprint] = (
                         part.ais_colored_shape,
                         original_color,
                     )
 
-                    # Store face to part mapping and part's selected face
-                    self.face_to_part_map[face_hash] = idx
-                    self.part_selected_faces[idx] = selected_face
+                    # Store Face namedtuple for later use
+                    self.face_by_fingerprint[fingerprint] = selected_face
 
-                    # Store face object for later restoration
-                    self.face_to_faceobj_map[face_hash] = selected_face
+                    # Store part's selected Face for planar alignment
+                    self.part_selected_faces[idx] = selected_face
 
                     selected_count += 1
 
@@ -744,47 +621,6 @@ class SelectionManager:
         if count > 0:
             return gp_Pnt(total_x / count, total_y / count, total_z / count)
         return gp_Pnt(0, 0, 0)
-
-    def _face_fingerprint(self, face) -> str:
-        """Compute a stable 64-bit fingerprint for a face.
-
-        The fingerprint is derived from: area, centroid coordinates, number of
-        wires and edges. The data is hashed with SHA1 and the first 8 bytes
-        are interpreted as an unsigned 64-bit integer and returned as a
-        decimal string. This is stable across runs (given the same geometry)
-        and suitable for correlating dumps and runtime selections.
-        """
-        try:
-            props = GProp_GProps()
-            brepgprop.SurfaceProperties(face, props)
-            area = float(props.Mass())
-            c = props.CentreOfMass()
-            cx, cy, cz = float(c.X()), float(c.Y()), float(c.Z())
-
-            # count wires and edges
-            wires = 0
-            edges = 0
-            wexp = TopExp_Explorer(face, TopAbs_WIRE)
-            while wexp.More():
-                wires += 1
-                eexp = TopExp_Explorer(wexp.Current(), TopAbs_EDGE)
-                while eexp.More():
-                    edges += 1
-                    eexp.Next()
-                wexp.Next()
-
-            # Bundle into a deterministic byte string
-            s = f"area={area:.6f};centroid={cx:.6f},{cy:.6f},{cz:.6f};wires={wires};edges={edges}"
-            h = hashlib.sha1(s.encode("utf8")).digest()[:8]
-            # unsigned 64-bit integer
-            val = int.from_bytes(h, byteorder="big", signed=False)
-            return str(val)
-        except Exception:
-            # Fallback to Python hash string (not stable across runs)
-            try:
-                return str(face.__hash__())
-            except Exception:
-                return str(id(face))
 
     def _is_face_external_to_assembly(self, face, all_solids: List):
         """
