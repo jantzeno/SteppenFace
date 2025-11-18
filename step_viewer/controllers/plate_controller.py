@@ -419,19 +419,20 @@ class PlateController:
         try:
             # Export plate to SVG
             output_path = Path(output_dir)
-            self.arrangement_manager.export_plate_to_svg(
+            svg_path = self.plate_manager.export_plate_to_svg(
                 plate.id,
                 self._get_parts_list(),
                 output_path,
-                self.planar_alignment_manager,
+                self.arrangement_manager,
+                self.planar_alignment_manager
             )
 
             messagebox.showinfo(
                 "Export Successful",
-                f"Successfully exported '{plate.name}' to SVG.\n\nFile: {output_path / f'{plate.name}.svg'}",
+                f"Successfully exported '{plate.name}' to SVG.\n\nFile: {svg_path}",
                 parent=self.root,
             )
-            logger.info(f"Exported plate {plate.name} to {output_path}")
+            logger.info(f"Exported plate {plate.name} to {svg_path}")
 
         except Exception as e:
             logger.error(f"Failed to export plate {plate.id}: {e}")

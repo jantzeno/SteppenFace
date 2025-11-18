@@ -5,14 +5,26 @@ Plate manager for handling multiple material plates/sheets with part association
 from typing import Optional, List, Tuple, Set
 from dataclasses import dataclass, field
 import math
+from pathlib import Path
 
-from OCC.Core.gp import gp_Pnt
-from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace
+from OCC.Core.gp import gp_Pnt, gp_Dir, gp_Trsf, gp_Ax1
+from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace, BRepBuilderAPI_Transform
 from OCC.Core.Graphic3d import Graphic3d_MaterialAspect, Graphic3d_NOM_PLASTIC
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
 from OCC.Core.AIS import AIS_Shape
 from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
+from OCC.Core.TopoDS import TopoDS_Compound, TopoDS_Builder, topods
+from OCC.Core.TopExp import TopExp_Explorer
+from OCC.Core.TopAbs import TopAbs_FACE
+from OCC.Core.GProp import GProp_GProps
+from OCC.Core.BRepGProp import brepgprop
+from OCC.Extend.TopologyUtils import get_sorted_hlr_edges, discretize_edge
+from shapely.geometry import LineString, Polygon as ShapelyPolygon
+from shapely.ops import unary_union, polygonize, linemerge, snap
+import xml.etree.ElementTree as ET
+
+from .log_manager import logger
 
 
 @dataclass
@@ -570,3 +582,324 @@ class PlateManager:
             self._hide_exclusion_zones(plate, display)
             self._show_exclusion_zones(plate, display)
             display.Context.UpdateCurrentViewer()
+
+    def export_plate_to_svg(
+        self,
+        plate_id: int,
+        parts_list: List,
+        output_path: Path,
+        arrangement_manager,
+        planar_alignment_manager
+    ) -> str:
+        """
+        Export a plate with arranged parts to SVG format.
+
+        Args:
+            plate_id: ID of the plate to export
+            parts_list: List of parts
+            output_path: Directory to save SVG file
+            arrangement_manager: Reference to arrangement manager for packing results
+            planar_alignment_manager: Reference to planar alignment manager
+
+        Returns:
+            Path to the created SVG file
+        """
+        plate = self.get_plate_by_id(plate_id)
+        if not plate:
+            logger.error(f"Plate {plate_id} not found")
+            raise ValueError(f"Plate {plate_id} not found")
+
+        plate_results = [r for r in arrangement_manager.last_packing_results if r.plate_id == plate_id]
+        if not plate_results:
+            logger.error(f"No parts arranged on plate {plate_id}")
+            raise ValueError(f"No parts arranged on plate {plate_id}")
+
+        logger.info(f"Exporting plate '{plate.name}' with {len(plate_results)} parts")
+
+        # Create root SVG element
+        root = ET.Element('svg', {
+            'xmlns': 'http://www.w3.org/2000/svg',
+            'width': f'{plate.width_mm}mm',
+            'height': f'{plate.height_mm}mm',
+            'viewBox': f'0 0 {plate.width_mm} {plate.height_mm}'
+        })
+
+        # Process each part
+        for result in plate_results:
+            logger.debug(f"Processing part {result.part_idx} at position ({result.x}, {result.y})")
+
+            try:
+                face = self._find_top_face(parts_list[result.part_idx], result)
+                if not face:
+                    logger.warning(f"No top face found for part {result.part_idx}, skipping")
+                    continue
+
+                logger.debug(f"Found top face for part {result.part_idx}")
+
+                paths = self._export_face_to_closed_paths(face, parts_list[result.part_idx], result, plate.height_mm)
+            except Exception as e:
+                logger.error(f"Error processing part {result.part_idx}: {e}", exc_info=True)
+                raise
+            if not paths:
+                logger.warning(f"No polygons generated for part {result.part_idx}, skipping")
+                continue
+
+            logger.info(f"Generated {len(paths)} closed polygons for part {result.part_idx}")
+
+            # Create group for this part
+            group = ET.SubElement(root, 'g', {'id': f'part_{result.part_idx}'})
+
+            # Add paths to group
+            for path_d in paths:
+                ET.SubElement(group, 'path', {
+                    'd': path_d,
+                    'fill': 'none',
+                    'stroke': 'black',
+                    'stroke-width': '0.1'
+                })
+
+        # Write SVG to file
+        svg_path = output_path / f'{plate.name}.svg'
+        tree = ET.ElementTree(root)
+        ET.indent(tree, space='  ')
+        tree.write(svg_path, encoding='utf-8', xml_declaration=True)
+
+        logger.info(f"Wrote SVG to {svg_path}")
+        return str(svg_path)
+
+    def _find_top_face(self, part, packing_result):
+        """
+        Find the top-facing face of a part using transformed bounding box.
+
+        Args:
+            part: The part to find the top face for
+            packing_result: PackingResult with transformation info
+
+        Returns:
+            TopoDS_Face or None if no faces found
+        """
+        # Get part transformation
+        trsf = part.ais_colored_shape.LocalTransformation() if part.ais_colored_shape.HasTransformation() else gp_Trsf()
+
+        # Find face with highest Z centroid
+        best_face = None
+        best_z = float('-inf')
+
+        explorer = TopExp_Explorer(part.shape, TopAbs_FACE)
+        while explorer.More():
+            face = topods.Face(explorer.Current())
+
+            # Get face centroid
+            props = GProp_GProps()
+            brepgprop.SurfaceProperties(face, props)
+            centroid = props.CentreOfMass()
+
+            # Apply transformation
+            centroid.Transform(trsf)
+
+            if centroid.Z() > best_z:
+                best_z = centroid.Z()
+                best_face = face
+
+            explorer.Next()
+
+        if best_face:
+            logger.debug(f"Found top face at Z={best_z:.2f}")
+        else:
+            logger.debug("No faces found")
+
+        return best_face
+
+    def _export_face_to_closed_paths(self, face, part, packing_result, plate_height):
+        """
+        Export a face to closed SVG paths using HLR projection.
+
+        Args:
+            face: TopoDS_Face to export (in original part coordinate system)
+            part: The part containing the face
+            packing_result: PackingResult with position and rotation info
+            plate_height: Height of the plate in mm (for Y-axis flip)
+
+        Returns:
+            List of SVG path strings
+        """
+        # Get the part's transformation (includes planar alignment that makes it flat)
+        trsf = part.ais_colored_shape.LocalTransformation() if part.ais_colored_shape.HasTransformation() else gp_Trsf()
+        
+        # Apply transformation to face so it's flat and facing up
+        transformed_face = BRepBuilderAPI_Transform(face, trsf, False).Shape()
+        
+        # Build compound containing the transformed face
+        builder = TopoDS_Builder()
+        compound = TopoDS_Compound()
+        builder.MakeCompound(compound)
+        builder.Add(compound, transformed_face)
+
+        # Use HLR to get edges from top-down view
+        direction = gp_Dir(0, 0, 1)
+        edges, hidden_edges = get_sorted_hlr_edges(compound, position=None, direction=direction, export_hidden_edges=False)
+
+        logger.debug(f"Found {len(edges)} edges for HLR projection")
+
+        if not edges:
+            return []
+
+        # Discretize edges and project to 2D
+        lines = []
+        for edge in edges:
+            points = discretize_edge(edge, 0.1)
+            if len(points) >= 2:
+                # Project to 2D (take X, Y only)
+                coords = [(p[0], p[1]) for p in points]
+                lines.append(LineString(coords))
+
+        if not lines:
+            return []
+
+        # Calculate bounding box to normalize coordinates
+        all_coords = []
+        for line in lines:
+            all_coords.extend(list(line.coords))
+        
+        xs = [c[0] for c in all_coords]
+        ys = [c[1] for c in all_coords]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        diagonal = math.sqrt((max_x - min_x)**2 + (max_y - min_y)**2)
+        
+        logger.debug(f"Face bbox: X=[{min_x:.2f}, {max_x:.2f}], Y=[{min_y:.2f}, {max_y:.2f}], diagonal={diagonal:.2f}")
+        logger.debug(f"Part {packing_result.part_idx}: offset from edges: ({min_x:.2f}, {min_y:.2f})")
+        
+        # Store the offset to apply later (after polygonization)
+        offset_x, offset_y = min_x, min_y
+
+        # Try progressive tolerances to close gaps
+        tolerances = [1e-6, 1e-4, 1e-3, 5e-3, 1e-2]
+        polygons = []
+
+        # First merge all lines
+        merged = unary_union(lines)
+
+        for tol_factor in tolerances:
+            tol = tol_factor * diagonal
+            logger.debug(f"Trying gap closing with tolerance {tol:.6f}")
+
+            # Try snap + linemerge + polygonize
+            snapped = snap(merged, merged, tol)
+            snapped = linemerge(snapped)
+            snapped_union = unary_union(snapped)
+            polygons = list(polygonize(snapped_union))
+            
+            if polygons:
+                logger.info(f"Successfully closed gaps with tolerance {tol:.6f}")
+                break
+            
+            # Fallback: buffer creates a polygon from the lines, then get its boundary
+            # and polygonize that to extract the actual shape
+            buffered = snapped_union.buffer(tol / 2)
+            if isinstance(buffered, ShapelyPolygon):
+                # Single polygon - use it directly
+                polygons = [buffered]
+                logger.info(f"Successfully closed gaps with buffering at tolerance {tol:.6f}")
+                break
+            elif hasattr(buffered, 'geoms'):
+                # MultiPolygon - use all geometries
+                polygons = list(buffered.geoms)
+                logger.info(f"Successfully closed gaps with buffering at tolerance {tol:.6f}")
+                break
+
+        if not polygons:
+            logger.warning("Failed to create closed polygons from edges")
+            return []
+
+        # Filter outer polygons (not contained by others)
+        outer_polygons = []
+        for i, poly1 in enumerate(polygons):
+            is_contained = False
+            for j, poly2 in enumerate(polygons):
+                if i != j and poly2.contains(poly1):
+                    is_contained = True
+                    break
+            if not is_contained:
+                outer_polygons.append(poly1)
+
+        logger.info(f"Generated {len(outer_polygons)} closed polygons")
+        
+        # NOTE: Rotation is already applied in 3D by the arrangement manager,
+        # so the HLR edges are already in the rotated orientation.
+        # We just need to normalize coordinates and position them.
+        
+        # Convert to SVG paths
+        svg_paths = []
+        for poly in outer_polygons:
+            path_d = self._coords_to_svg_path(poly, packing_result, offset_x, offset_y, plate_height)
+            svg_paths.append(path_d)
+
+        return svg_paths
+
+    def _coords_to_svg_path(self, polygon, packing_result, offset_x, offset_y, plate_height):
+        """
+        Convert polygon coordinates to SVG path string.
+        Note: Rotation is already applied in 3D, so we just normalize and position.
+
+        Args:
+            polygon: Shapely Polygon (in original coordinates)
+            packing_result: PackingResult with position offset
+            offset_x, offset_y: Original bbox minimum to subtract for normalization
+            plate_height: Height of the plate in mm (for Y-axis flip)
+
+        Returns:
+            SVG path 'd' attribute string
+        """
+        # Get exterior ring coordinates
+        coords = list(polygon.exterior.coords)
+        
+        if not coords:
+            return ""
+        
+        # Normalize to origin (subtract bbox minimum)
+        coords = [(x - offset_x, y - offset_y) for x, y in coords]
+        
+        # Collect and normalize hole coordinates
+        all_hole_coords = []
+        for interior in polygon.interiors:
+            hole_coords = list(interior.coords)
+            if hole_coords:
+                hole_coords = [(x - offset_x, y - offset_y) for x, y in hole_coords]
+                all_hole_coords.append(hole_coords)
+
+        # Start path with first point (apply plate-relative offset and flip Y)
+        x, y = coords[0]
+        x += packing_result.x
+        y += packing_result.y
+        y = plate_height - y  # Flip Y axis for SVG coordinate system
+        path_parts = [f"M {x:.3f} {y:.3f}"]
+
+        # Add line segments
+        for x, y in coords[1:]:
+            x += packing_result.x
+            y += packing_result.y
+            y = plate_height - y  # Flip Y axis
+            path_parts.append(f"L {x:.3f} {y:.3f}")
+
+        # Close path
+        path_parts.append("Z")
+
+        # Add holes if present
+        for hole_coords in all_hole_coords:
+            if hole_coords:
+                x, y = hole_coords[0]
+                x += packing_result.x
+                y += packing_result.y
+                y = plate_height - y  # Flip Y axis
+                path_parts.append(f"M {x:.3f} {y:.3f}")
+                
+                for x, y in hole_coords[1:]:
+                    x += packing_result.x
+                    y += packing_result.y
+                    y = plate_height - y  # Flip Y axis
+                    path_parts.append(f"L {x:.3f} {y:.3f}")
+                
+                path_parts.append("Z")
+
+        return " ".join(path_parts)
