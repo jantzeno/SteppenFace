@@ -14,6 +14,7 @@ from OCC.Core.gp import gp_Pnt, gp_Vec, gp_Dir, gp_Lin, gp_Ax1
 from OCC.Core.BRepIntCurveSurface import BRepIntCurveSurface_Inter
 import hashlib
 
+from ..managers.planar_alignment_manager import PlanarAlignmentManager
 from ..config import ViewerConfig
 from .color_manager import ColorManager
 from .log_manager import logger
@@ -22,9 +23,11 @@ from .log_manager import logger
 class SelectionManager:
     """Manages face selection state and highlighting."""
 
-    def __init__(self, display, color_manager: ColorManager, config: ViewerConfig):
+    def __init__(self, display, color_manager: ColorManager, planar_alignment_manager: PlanarAlignmentManager, config: ViewerConfig):
         self.display = display
         self.color_manager = color_manager
+        self.planar_alignment_manager = planar_alignment_manager
+        self.selection_label = None
         self.config = config
         self.is_selection_mode = False
 
@@ -39,20 +42,13 @@ class SelectionManager:
         self.face_to_part_map: Dict[int, int] = {}  # Maps face hash to part index
         self.part_selected_faces: Dict[int, any] = (
             {}
-        )  # Maps part index to selected face object
-        # Map AIS_ColoredShape object itself to its base color (for restoring after selection)
-        # Using the object as key instead of id() to avoid Python wrapper issues
+        )
         self.ais_base_colors: Dict = {}
-        self.selection_label = None
-        self.planar_alignment_manager = None  # Reference to planar alignment manager
+
 
     def set_selection_label(self, label):
         """Set reference to the selection count label."""
         self.selection_label = label
-
-    def set_planar_alignment_manager(self, manager):
-        """Set reference to planar alignment manager."""
-        self.planar_alignment_manager = manager
 
     def register_part_base_color(self, ais_shape, color):
         """

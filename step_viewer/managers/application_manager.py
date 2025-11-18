@@ -16,6 +16,7 @@ from . import (
     UIManager,
     CanvasManager,
 )
+from .part_manager import PartManager
 from .units_manager import UnitsManager, UnitSystem
 from .log_manager import logger
 from ..controllers import (
@@ -39,15 +40,16 @@ class ApplicationManager:
         self.ui = UIManager(self.root, self.config)
         self.shape = None
         self.display = None
-        self.parts_list = []
-
-        # Controllers (initialized later)
         self.display_manager = None
         self.tree_controller = None
         self.exclusion_zone_controller = None
+        self.part_manager = None
         self.plate_controller = None
+        self.planar_arrangement_manager = None
+        self.planar_alignment_manager = None
         self.event_manager = None
         self.feature_controller = None
+        self.explode_manager = None
 
     def run(self):
         """Main entry point to run the viewer."""
@@ -69,25 +71,27 @@ class ApplicationManager:
         self.view = self.display_manager.display.View
 
         # Setup managers and controllers
-        self._setup_event_controllers()
+        self._setup_managers_controllers()
 
-        # Display the model first to populate parts_list
-        self.parts_list = self.display_manager.display_model(
+        # Display the model and migrate parts into the central PartManager
+        parts = self.display_manager.display_model(
             self.shape, self.explode_manager, self.planar_alignment_manager
         )
+        self.part_manager.set_parts(parts)
+
+        # Reinitialize managers that depend on parts data now that parts are loaded
+        self.explode_manager.initialize_parts()
+        self.planar_alignment_manager.initialize_parts()
 
         # Register base colors for all parts in the selection manager
-        # This is needed for proper face selection highlighting
         from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
-        for part in self.parts_list:
+        for part in self.part_manager.get_parts():
             color = Quantity_Color(part.pallete[0], part.pallete[1], part.pallete[2], Quantity_TOC_RGB)
             self.selection_manager.register_part_base_color(part.ais_colored_shape, color)
 
-        # Configure display settings (must be after display_model to activate face selection)
-        self.display_manager.configure_display(self.parts_list, self.color_manager)
-
-        # Populate UI
-        self.ui.populate_parts_tree(self.parts_list)
+        # Configure display settings and populate UI from the PartManager
+        self.display_manager.configure_display(self.part_manager.get_parts(), self.color_manager)
+        self.ui.populate_parts_tree(self.part_manager.get_parts())
 
         # Setup UI controllers
         self._setup_ui_controllers()
@@ -108,7 +112,7 @@ class ApplicationManager:
         self.root.after(150, self.display_manager.final_update)
         self.root.mainloop()
 
-    def _setup_event_controllers(self):
+    def _setup_managers_controllers(self):
         """Setup all core controllers and managers."""
         # Initialize managers
         self.color_manager = ColorManager(self.config)
@@ -121,26 +125,21 @@ class ApplicationManager:
         )
         self.units_manager = UnitsManager(default_unit)
 
-        self.selection_manager = SelectionManager(
-            self.display, self.color_manager, self.config
-        )
-        self.selection_manager.set_selection_label(self.ui.selection_label)
-        self.explode_manager = ExplodeManager()
-        self.explode_manager.selection_manager = (
-            self.selection_manager
-        )  # Link for transformation updates
-        self.deduplication_manager = DeduplicationManager()
+        self.part_manager = PartManager()
         self.plate_manager = PlateManager(
             self.config.SHEET_WIDTH_MM, self.config.SHEET_HEIGHT_MM
         )
-        self.planar_alignment_manager = PlanarAlignmentManager(self.plate_manager)
-        self.selection_manager.set_planar_alignment_manager(
-            self.planar_alignment_manager
+        self.planar_alignment_manager = PlanarAlignmentManager(self.part_manager,self.plate_manager)
+        self.selection_manager = SelectionManager(
+            self.display, self.color_manager, self.planar_alignment_manager, self.config
         )
+        self.selection_manager.set_selection_label(self.ui.selection_label)
+        self.explode_manager = ExplodeManager(self.part_manager, self.selection_manager)
+        self.deduplication_manager = DeduplicationManager()
 
         # Initialize controllers
         self.mouse_controller = MouseController(
-            self.view, self.display, self.selection_manager, self.root
+            self.view, self.display, self.part_manager, self.selection_manager, self.root
         )
         self.keyboard_controller = KeyboardController(
             self.display,
@@ -155,29 +154,21 @@ class ApplicationManager:
 
     def _setup_ui_controllers(self):
         """Setup UI-specific controllers."""
-        # Tree controller for part highlighting
         self.tree_controller = TreeController(
             self.ui,
             self.canvas,
             self.display,
-            self.parts_list,
+            self.part_manager,
             self.deduplication_manager,
         )
         self.tree_controller.setup_tree_selection()
-
-        # Provide parts_list to mouse controller so navigation clicks can resolve part indices
-        try:
-            if hasattr(self, 'mouse_controller') and self.mouse_controller is not None:
-                self.mouse_controller.set_parts_list(self.parts_list)
-        except Exception:
-            pass
 
         # Feature controller for toggles
         self.feature_controller = FeatureController(
             self.root,
             self.display,
             self.ui,
-            self.parts_list,
+            self.part_manager,
             self.deduplication_manager,
             self.explode_manager,
             self.planar_alignment_manager,
@@ -193,11 +184,13 @@ class ApplicationManager:
             self.display,
             self.ui,
             self.plate_manager,
+            self.plate_manager,
             self.planar_alignment_manager,
+            self.planar_arrangement_manager,
             self.selection_manager,
             self.units_manager,
         )
-        self.plate_controller.set_parts_list(self.parts_list)
+        self.plate_controller.set_parts_list(self.part_manager)
         self.plate_controller.setup_controls()
 
         # Exclusion zone controller

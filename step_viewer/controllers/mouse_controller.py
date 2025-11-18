@@ -1,18 +1,19 @@
 from ..managers.selection_manager import SelectionManager
+from ..managers.part_manager import PartManager
 
 
 class MouseController:
     """Handles main application mouse events for navigation and face selection."""
 
-    def __init__(self, view, display, selection_manager: SelectionManager, root):
+    def __init__(self, view, display, parts_manager: PartManager, selection_manager: SelectionManager, root):
         self.view = view
         self.display = display
+        self.part_manager = parts_manager
         self.selection_manager = selection_manager
         self.root = root
         self.start_x = 0
         self.start_y = 0
         self.button = None
-        self.parts_list = None
 
     def on_left_press(self, event):
         """Handle left mouse button press."""
@@ -63,10 +64,10 @@ class MouseController:
             dx = abs(event.x - self.start_x)
             dy = abs(event.y - self.start_y)
             if dx < 5 and dy < 5:
-                # Ask selection manager to inspect and log face info; pass parts_list when available
                 try:
+                    parts_list = self.part_manager.get_parts()
                     self.selection_manager.inspect_face_at_position(
-                        event.x, event.y, self.view, parts_list=self.parts_list
+                        event.x, event.y, self.view, parts_list=parts_list
                     )
                 except Exception:
                     # ensure navigation behavior is not interrupted by inspect errors
@@ -81,8 +82,4 @@ class MouseController:
         elif event.delta < 0 or event.num == 5:
             self.display.ZoomFactor(0.9)
 
-    def set_parts_list(self, parts_list):
-        """Provide the controller with the current parts_list so navigation clicks
-        can resolve part indices for clicked faces.
-        """
-        self.parts_list = parts_list
+

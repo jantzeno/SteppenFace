@@ -6,10 +6,14 @@ import tkinter as tk
 from tkinter import simpledialog, messagebox, filedialog
 from pathlib import Path
 from typing import List
-from ..managers.part_manager import Part
+
+from ..managers.selection_manager import SelectionManager
+from ..managers.planar_alignment_manager import PlanarAlignmentManager
+from ..managers.plate_manager import PlateManager
+from ..managers.part_manager import Part, PartManager
 from ..managers.log_manager import logger
 from ..managers.plate_arrangement_manager import PlateArrangementManager
-from ..managers.units_manager import UnitSystem
+from ..managers.units_manager import UnitSystem, UnitsManager
 
 
 class PlateController:
@@ -21,10 +25,12 @@ class PlateController:
         canvas,
         display,
         ui,
-        plate_manager,
-        planar_alignment_manager,
-        selection_manager=None,
-        units_manager=None,
+        part_manager: PartManager,
+        plate_manager: PlateManager,
+        planar_alignment_manager: PlanarAlignmentManager,
+        plate_arrangement_manager: PlateArrangementManager,
+        selection_manager: SelectionManager,
+        units_manager: UnitsManager,
     ):
         self.root = root
         self.canvas = canvas
@@ -34,8 +40,8 @@ class PlateController:
         self.planar_alignment_manager = planar_alignment_manager
         self.selection_manager = selection_manager
         self.units_manager = units_manager
-        self.arrangement_manager = PlateArrangementManager(plate_manager)
-        self.parts_list: List[Part] = []
+        self.arrangement_manager = plate_arrangement_manager
+        self.part_manager = part_manager
 
     def setup_controls(self):
         """Setup plate management button callbacks."""
@@ -184,7 +190,14 @@ class PlateController:
         Args:
             parts_list: List of (solid, color, ais_shape) tuples
         """
-        self.parts_list = parts_list
+        # Accept either a PartManager-like object or a concrete list. Do not
+        # raise - keep behavior flexible and simple.
+        self.part_manager = parts_list
+
+    def _get_parts_list(self):
+        """Return the current concrete parts list, preferring PartManager when available."""
+        # Assume part_manager is always set and is the canonical source
+        return self.part_manager.get_parts()
 
     def get_parts_list(self):
         """
@@ -193,7 +206,8 @@ class PlateController:
         Args:
             parts_list: List of (solid, color, ais_shape) tuples
         """
-        return self.parts_list
+        # Return the concrete parts list from PartManager
+        return self._get_parts_list()
 
     def edit_plate_dimensions(self):
         """Edit dimensions of the selected plate."""
@@ -265,7 +279,7 @@ class PlateController:
             return
 
         # Check if we have parts to arrange
-        if not self.parts_list:
+        if not self._get_parts_list():
             messagebox.showwarning(
                 "No Parts", "No parts available to arrange.", parent=self.root
             )
@@ -289,13 +303,13 @@ class PlateController:
             try:
                 logger.info("Starting automatic part arrangement...")
                 packing_results = self.arrangement_manager.arrange_parts_on_plates(
-                    self.parts_list, self.display
+                    self._get_parts_list(), self.display
                 )
 
                 if packing_results:
                     # Apply the arrangement by transforming parts
                     self.arrangement_manager.apply_arrangement(
-                        self.parts_list, packing_results, self.display
+                        self._get_parts_list(), packing_results, self.display
                     )
 
                     # Debug: log parts per plate
@@ -406,7 +420,7 @@ class PlateController:
             # Export plate to SVG
             output_path = Path(output_dir)
             self.arrangement_manager.export_plate_to_svg(
-                plate.id, self.parts_list, output_path, self.planar_alignment_manager
+                plate.id, self._get_parts_list(), output_path, self.planar_alignment_manager
             )
 
             messagebox.showinfo(

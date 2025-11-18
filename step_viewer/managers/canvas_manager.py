@@ -116,10 +116,6 @@ class CanvasManager:
         self.display.FitAll()
         self.display.Repaint()
 
-        # Initialize managers with parts
-        explode_manager.initialize_parts(parts_list)
-        planar_alignment_manager.initialize_parts(parts_list)
-
         return parts_list
 
     def configure_display(self, parts_list: List[Part], color_manager):

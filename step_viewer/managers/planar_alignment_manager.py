@@ -17,30 +17,25 @@ from OCC.Core.Bnd import Bnd_Box
 from OCC.Core.BRepBndLib import brepbndlib
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 
+from step_viewer.managers.plate_manager import PlateManager
+
 from .log_manager import logger
-from .part_manager import Part
+from .part_manager import Part, PartManager
 
 class PlanarAlignmentManager:
     """Manages planar alignment - laying parts flat on a surface."""
 
-    def __init__(self, plate_manager=None):
-        self.parts_list: List[Part] = []
+    def __init__(self, part_manager: PartManager, plate_manager: PlateManager):
+        # PartManager will be provided by ApplicationManager and is the canonical source
+        self.part_manager = part_manager
+        self.plate_manager = plate_manager
         self.is_aligned = False
         self.original_transformations = []  # Store original transforms for reset
         self.planar_rotation_transformations = []  # Store planar-only rotation transforms
-        self.selected_faces_per_part = (
-            {}
-        )  # Maps part index to selected face for orientation
-        self.plate_manager = plate_manager  # Reference to plate manager
+        self.selected_faces_per_part = ( {} )  # Maps part index to selected face for orientation
 
-    def initialize_parts(self, parts_list: List[Part]):
-        """
-        Initialize parts data.
-
-        Args:
-            parts_list: List of namedtuple Part
-        """
-        self.parts_list = parts_list
+    def initialize_parts(self):
+        self.parts_list = self.part_manager.get_parts()
 
     def set_selected_faces(self, selected_faces_map: dict):
         """
@@ -50,15 +45,6 @@ class PlanarAlignmentManager:
             selected_faces_map: Dict mapping part index to selected face
         """
         self.selected_faces_per_part = selected_faces_map
-
-    def set_plate_manager(self, plate_manager):
-        """
-        Set the plate manager reference.
-
-        Args:
-            plate_manager: The PlateManager instance
-        """
-        self.plate_manager = plate_manager
 
     def toggle_planar_alignment(self, display, root):
         """Toggle planar alignment on/off."""
@@ -80,6 +66,9 @@ class PlanarAlignmentManager:
         2) Arrange the rotated parts in a simple grid on Z=0 and apply the
            combined rotation+translation to the AIS object for display.
         """
+        if not self.parts_list:
+            logger.warning("PlanarAlignmentManager: No parts available for alignment")
+            return
 
         self.original_transformations = []
         self.planar_rotation_transformations = []

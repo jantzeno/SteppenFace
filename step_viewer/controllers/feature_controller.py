@@ -3,9 +3,17 @@ Feature controller for managing viewer features like duplicate visibility and pl
 """
 
 import tkinter as tk
-from typing import List, Tuple, Dict
+from typing import Dict
+
+from ..controllers.tree_controller import TreeController
+from ..managers.deduplication_manager import DeduplicationManager
+from ..managers.explode_manager import ExplodeManager
+from ..managers.planar_alignment_manager import PlanarAlignmentManager
+from ..managers.plate_manager import PlateManager
+from ..managers.selection_manager import SelectionManager
 from ..managers.log_manager import logger
 from ..managers.canvas_view_helper import Canvas_View_Helper
+from ..managers.part_manager import PartManager, Part
 
 
 class FeatureController:
@@ -16,18 +24,19 @@ class FeatureController:
         root: tk.Tk,
         display,
         ui,
-        parts_list: List[Tuple],
-        deduplication_manager,
-        explode_manager,
-        planar_alignment_manager,
-        plate_manager,
-        selection_manager,
-        tree_controller,
+        part_manager: PartManager,
+        deduplication_manager: DeduplicationManager,
+        explode_manager: ExplodeManager,
+        planar_alignment_manager: PlanarAlignmentManager,
+        plate_manager: PlateManager,
+        selection_manager: SelectionManager,
+        tree_controller: TreeController,
     ):
         self.root = root
         self.display = display
         self.ui = ui
-        self.parts_list = parts_list
+        # Accept either a PartManager-like object or a concrete list. Keep it simple.
+        self.part_manager = part_manager
         self.deduplication_manager = deduplication_manager
         self.explode_manager = explode_manager
         self.planar_alignment_manager = planar_alignment_manager
@@ -46,8 +55,8 @@ class FeatureController:
             self.deduplication_manager.hidden_indices.clear()
 
             # Show all parts
-            for solid, color, ais_shape in self.parts_list:
-                self.display.Context.Display(ais_shape, False)
+            for part in self.part_manager.get_parts():
+                self.display.Context.Display(part.ais_colored_shape, False)
             logger.info("Showing all parts (including duplicates)")
 
             # Restore hidden selections
@@ -58,19 +67,20 @@ class FeatureController:
                 self.hidden_selections = {}
 
             # Update parts tree to remove hidden indicators
-            self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
+            self.ui.update_parts_tree(self.part_manager.get_parts(), self.deduplication_manager)
 
             # Restore highlight indicators in the refreshed tree
             self.tree_controller.restore_tree_highlight_indicators()
         else:
             # Hide duplicate parts
             unique_parts, duplicate_groups = (
-                self.deduplication_manager.get_unique_parts(self.parts_list)
+                self.deduplication_manager.get_unique_parts(self.part_manager.get_parts())
             )
 
             # Collect AIS shapes that will be hidden
             hidden_indices = self.deduplication_manager.hidden_indices
-            ais_shapes_to_hide = [self.parts_list[i].ais_colored_shape for i in hidden_indices]
+            current_parts = self.part_manager.get_parts()
+            ais_shapes_to_hide = [current_parts[i].ais_colored_shape for i in hidden_indices]
 
             # Hide selections for parts that are about to be hidden
             self.hidden_selections = self.selection_manager.hide_selections_for_parts(
@@ -78,7 +88,7 @@ class FeatureController:
             )
 
             # Hide all parts first
-            for part in self.parts_list:
+            for part in self.part_manager.get_parts():
                 self.display.Context.Erase(part.ais_colored_shape, False)
 
             # Show only unique parts
@@ -88,7 +98,7 @@ class FeatureController:
             logger.info("Showing only unique parts (duplicates hidden)")
 
             # Update parts tree to show hidden status
-            self.ui.update_parts_tree(self.parts_list, self.deduplication_manager)
+            self.ui.update_parts_tree(self.part_manager.get_parts(), self.deduplication_manager)
 
             # Restore highlight indicators in the refreshed tree
             self.tree_controller.restore_tree_highlight_indicators()
@@ -97,13 +107,12 @@ class FeatureController:
         if self.explode_manager.get_explosion_factor() > 0:
             # Get visible parts for explosion
             if show_duplicates:
-                visible_parts = self.parts_list
+                visible_parts = self.part_manager.get_parts()
             else:
                 visible_parts, _ = self.deduplication_manager.get_unique_parts(
-                    self.parts_list
+                    self.part_manager.get_parts()
                 )
 
-            self.explode_manager.initialize_parts(visible_parts)
             self.explode_manager.set_explosion_factor(
                 self.explode_manager.get_explosion_factor(), self.display, self.root
             )
@@ -138,9 +147,8 @@ class FeatureController:
 
         if is_aligned:
             # Associate parts with plates based on their positions
-            self.plate_manager.associate_parts_by_position(
-                self.parts_list, self.display
-            )
+            parts_for_plate = self.part_manager.get_parts()
+            self.plate_manager.associate_parts_by_position(parts_for_plate, self.display)
 
             # Update plate list UI
             self.ui.update_plate_list(self.plate_manager)
@@ -159,9 +167,9 @@ class FeatureController:
         # Get the visible parts list (respecting duplicate hiding)
         if not self.deduplication_manager.show_duplicates:
             visible_parts, _ = self.deduplication_manager.get_unique_parts(
-                self.parts_list
+                self.part_manager.get_parts()
             )
         else:
-            visible_parts = self.parts_list
+            visible_parts = self.part_manager.get_parts()
 
         self.selection_manager.select_largest_external_faces(visible_parts, self.root)

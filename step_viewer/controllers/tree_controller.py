@@ -4,19 +4,22 @@ Tree controller for managing part selection and highlighting in the UI tree.
 
 from typing import List, Tuple, Dict, Any
 from OCC.Core.Quantity import Quantity_Color, Quantity_TOC_RGB
+
+from ..managers.deduplication_manager import DeduplicationManager
 from ..managers.log_manager import logger
+from ..managers.part_manager import PartManager
 
 
 class TreeController:
     """Manages tree-based part selection and highlighting."""
 
     def __init__(
-        self, ui, canvas, display, parts_list: List[Tuple], deduplication_manager=None
+        self, ui, canvas, display, part_manager: PartManager, deduplication_manager: DeduplicationManager
     ):
         self.ui = ui
         self.canvas = canvas
         self.display = display
-        self.parts_list = parts_list
+        self.part_manager = part_manager
         self.deduplication_manager = deduplication_manager
         self.highlighted_parts: Dict[int, Tuple[Any, Quantity_Color]] = {}
 
@@ -61,17 +64,21 @@ class TreeController:
         Args:
             part_idx: Index of the part to highlight
         """
-        if part_idx < 0 or part_idx >= len(self.parts_list):
+        current_parts = self.part_manager.get_parts()
+
+        if part_idx < 0 or part_idx >= len(current_parts):
             return
 
         # Already highlighted
         if part_idx in self.highlighted_parts:
             return
 
-        part = self.parts_list[part_idx]
+        part = current_parts[part_idx]
 
         # Store original color
-        original_color = Quantity_Color(part.pallete[0], part.pallete[1], part.pallete[2], Quantity_TOC_RGB)
+        original_color = Quantity_Color(
+            part.pallete[0], part.pallete[1], part.pallete[2], Quantity_TOC_RGB
+        )
 
         # Create bright highlight color (yellow)
         highlight_color = Quantity_Color(1.0, 1.0, 0.0, Quantity_TOC_RGB)
@@ -167,8 +174,9 @@ class TreeController:
                         new_text = current_text[2:]  # Remove "★ "
                         self.ui.parts_tree.item(item, text=new_text)
                         # Restore original color (need to recalculate from parts_list)
-                        if part_idx < len(self.parts_list):
-                            part = self.parts_list[part_idx]
+                        current_parts = self.part_manager.get_parts()
+                        if part_idx < len(current_parts):
+                            part = current_parts[part_idx]
                             r, g, b = part.pallete
                             hex_color = (
                                 f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"

@@ -8,30 +8,29 @@ import numpy as np
 from OCC.Core.gp import gp_Trsf, gp_Vec
 from OCC.Core.GProp import GProp_GProps
 from OCC.Core.BRepGProp import brepgprop
+
+from ..managers.selection_manager import SelectionManager
 from .part_manager import Part
+from .part_manager import PartManager
 
 
 class ExplodeManager:
     """Manages model explosion - separating parts based on their positions."""
 
-    def __init__(self):
-        self.parts_data = []
+    def __init__(self, part_manager: PartManager, selection_manager: SelectionManager):
         self.global_center = None
         self.explosion_factor = 0.0
         self.min_part_distance = None
-        self.selection_manager = None  # Will be set by viewer
+        self.part_manager = part_manager
+        self.selection_manager = selection_manager
 
-    def initialize_parts(self, parts_list: List[Part]):
-        """
-        Initialize parts data with their centroids and original locations.
+    def initialize_parts(self):
 
-        Args:
-            parts_list: List of Parts(solid, color, ais_shape)
-        """
         self.parts_data = []
+        parts_iter = self.part_manager.get_parts()
         centroids = []
 
-        for part in parts_list:
+        for part in parts_iter:
             # Calculate centroid of the solid
             props = GProp_GProps()
             brepgprop.VolumeProperties(part.shape, props)
@@ -71,9 +70,12 @@ class ExplodeManager:
             display: The OCC display object
             root: Tkinter root for UI updates
         """
+        from .log_manager import logger
+        
         self.explosion_factor = max(0.0, min(5.0, factor))
 
         if len(self.parts_data) == 0:
+            logger.warning("ExplodeManager: No parts data available for explosion")
             return
 
         # Calculate the characteristic scale based on the model extent
