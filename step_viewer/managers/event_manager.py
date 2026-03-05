@@ -30,60 +30,23 @@ class EventManager:
         """
         Bind mouse and keyboard events.
 
-        Args:
-            toggle_duplicate_callback: Callback for toggling duplicate visibility
-            toggle_planar_callback: Callback for toggling planar alignment
-            select_largest_callback: Callback for selecting largest faces
+        Replaces tkViewer3d's default bindings via canvas.bind (which overwrites
+        any previous binding for the same event).
         """
-        # Unbind OCC's default handlers
-        widgets_to_unbind = [self.canvas, self.root]
-        for widget in widgets_to_unbind:
-            for event in [
-                "<Button-1>",
-                "<Button-2>",
-                "<Button-3>",
-                "<B1-Motion>",
-                "<B2-Motion>",
-                "<B3-Motion>",
-                "<ButtonRelease-1>",
-                "<ButtonRelease-2>",
-                "<ButtonRelease-3>",
-            ]:
-                try:
-                    widget.unbind(event)
-                except:
-                    pass
+        # Replace left-button bindings (rotation + selection mode + exclusion zones)
+        self.canvas.bind("<Button-1>", self._on_left_press_wrapper)
+        self.canvas.bind("<B1-Motion>", self._on_left_motion_wrapper)
+        self.canvas.bind("<ButtonRelease-1>", self._on_release_wrapper)
 
-        # Helper to stop event propagation (but allow tree widget events)
-        def make_handler(func):
-            def handler(event):
-                # Don't intercept events from the parts tree
-                if (
-                    hasattr(event.widget, "winfo_class")
-                    and event.widget.winfo_class() == "Treeview"
-                ):
-                    return
-                func(event)
-                return "break"
+        # Right-click pan
+        self.canvas.bind("<Button-3>", self.mouse_controller.on_right_press)
+        self.canvas.bind("<B3-Motion>", self.mouse_controller.on_right_motion)
+        self.canvas.bind("<ButtonRelease-3>", self.mouse_controller.on_release)
 
-            return handler
-
-        # Bind mouse events (with exclusion zone handling if available)
-        self.root.bind_all("<Button-1>", make_handler(self._on_left_press_wrapper))
-        self.root.bind_all("<B1-Motion>", make_handler(self._on_left_motion_wrapper))
-        self.root.bind_all("<ButtonRelease-1>", make_handler(self._on_release_wrapper))
-        self.root.bind_all(
-            "<Button-3>", make_handler(self.mouse_controller.on_right_press)
-        )
-        self.root.bind_all(
-            "<B3-Motion>", make_handler(self.mouse_controller.on_right_motion)
-        )
-        self.root.bind_all(
-            "<ButtonRelease-3>", make_handler(self.mouse_controller.on_release)
-        )
-        self.root.bind_all("<MouseWheel>", make_handler(self.mouse_controller.on_wheel))
-        self.root.bind_all("<Button-4>", make_handler(self.mouse_controller.on_wheel))
-        self.root.bind_all("<Button-5>", make_handler(self.mouse_controller.on_wheel))
+        # Zoom
+        self.canvas.bind("<MouseWheel>", self.mouse_controller.on_wheel)
+        self.canvas.bind("<Button-4>", self.mouse_controller.on_wheel)
+        self.canvas.bind("<Button-5>", self.mouse_controller.on_wheel)
 
         # Bind keyboard events
         self.canvas.bind("<f>", self.keyboard_controller.on_key_f)
@@ -131,6 +94,7 @@ class EventManager:
 
     def _on_left_press_wrapper(self, event):
         """Wrapper for left mouse press that handles exclusion zone drawing."""
+        event.widget.focus_set()  # Ensure canvas gets keyboard focus
         if (
             self.exclusion_zone_controller
             and self.exclusion_zone_controller.exclusion_draw_mode

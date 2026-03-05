@@ -7,11 +7,7 @@ from typing import Dict, List, Tuple
 from OCC.Core.AIS import AIS_ColoredShape, AIS_Shape
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_WIRE, TopAbs_EDGE
-from OCC.Core.GProp import GProp_GProps
-from OCC.Core.BRepGProp import brepgprop
-from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
-from OCC.Core.gp import gp_Pnt, gp_Vec, gp_Dir, gp_Lin, gp_Ax1
-from OCC.Core.BRepIntCurveSurface import BRepIntCurveSurface_Inter
+from OCC.Core.gp import gp_Pnt, gp_Vec
 import hashlib
 
 from ..managers.planar_alignment_manager import PlanarAlignmentManager
@@ -30,7 +26,7 @@ class SelectionManager:
         color_manager: ColorManager,
         part_manager: PartManager,
         planar_alignment_manager: PlanarAlignmentManager,
-        config: ViewerConfig
+        config: ViewerConfig,
     ):
         self.display = display
         self.color_manager = color_manager
@@ -216,13 +212,7 @@ class SelectionManager:
                     part_idx = face.part_index
                     fp = face.fingerprint
                     global_face_number = face.global_index
-
-                    # Find per-part face id (1-based) within the part's faces
-                    faces_in_part = self.part_manager.get_faces_for_part(part_idx)
-                    for i, face_in_part in enumerate(faces_in_part):
-                        if face_in_part.shape.IsEqual(detected_shape):
-                            face_id = i + 1  # 1-based
-                            break
+                    face_id = face.part_face_index
 
             except Exception:
                 part_idx = None
@@ -380,7 +370,9 @@ class SelectionManager:
                     self.display.Context.Redisplay(parent_ais, True)
                     redrawn_objects.add(id(parent_ais))
             except Exception as e:
-                logger.warning(f"Could not restore selection for face {fingerprint}: {e}")
+                logger.warning(
+                    f"Could not restore selection for face {fingerprint}: {e}"
+                )
 
         # Update selection count label
         count = len(self.selected_faces)
@@ -418,22 +410,6 @@ class SelectionManager:
         # Calculate assembly center for inside/outside determination
         assembly_origin = self._calculate_assembly_center(parts_list)
 
-        # Get all solids for occlusion checking (entire assembly)
-        all_solids = [part.shape for part in parts_list]
-
-        
-        global_face_map = {}
-        global_idx = 1
-        for part in parts_list:
-            exp_g = TopExp_Explorer(part.shape, TopAbs_FACE)
-            while exp_g.More():
-                f = exp_g.Current()
-                key = f.__hash__() if hasattr(f, "__hash__") else id(f)
-                if key not in global_face_map:
-                    global_face_map[key] = global_idx
-                global_idx += 1
-                exp_g.Next()
-
         for idx, part in enumerate(parts_list):
             # Find all faces and their areas from the Face namedtuples
             face_areas = []
@@ -451,89 +427,39 @@ class SelectionManager:
                 f"  Part {idx+1}: {len(face_areas)} faces, top 2 by area: {[f'{a:.2f}' for a, _ in face_areas[:2]]}"
             )
 
-            # Check the two largest faces to determine which is external
             selected_face = None
             selected_area = 0.0
 
-            # Get part center for orientation checking
-            part_props = GProp_GProps()
-            brepgprop.VolumeProperties(part.shape, part_props)
-            part_center = part_props.CentreOfMass()
+            if len(face_areas) == 1:
+                # Only one face, select it
+                selected_area, selected_face = face_areas[0]
+            elif len(face_areas) >= 2:
+                area1, face1 = face_areas[0]
+                area2, face2 = face_areas[1]
 
-            # We'll test up to 2 largest faces and score them
-            best_score = -1.0
-            face_candidates = []
+                # For sheet metal: the two largest faces are top/bottom.
+                # Pick the one whose normal points more outward from assembly center.
+                score1 = self._outward_score(face1, assembly_origin)
+                score2 = self._outward_score(face2, assembly_origin)
 
-            for face_idx, (area, face_nt) in enumerate(face_areas[:2]):
-                # Check if this face is external relative to the entire assembly
-                is_external, debug_info, clear_count = (
-                    self._is_face_external_to_assembly(face_nt.shape, all_solids)
-                )
-
-                if is_external:
-                    # Use properties from Face namedtuple
-                    face_center_gp = gp_Pnt(face_nt.centroid[0], face_nt.centroid[1], face_nt.centroid[2])
-                    normal_vec = gp_Vec(face_nt.normal[0], face_nt.normal[1], face_nt.normal[2])
-
-                    outward_score = 0.0
-                    if normal_vec.Magnitude() > 1e-7:
-                        normal_vec.Normalize()
-                        # Vector from origin to face center
-                        to_face = gp_Vec(assembly_origin, face_center_gp)
-                        if to_face.Magnitude() > 1e-7:
-                            to_face.Normalize()
-                            # Positive dot product means normal points away from origin (outward)
-                            # Use max of normal and -normal to handle arbitrary normal direction
-                            outward_score = max(
-                                normal_vec.Dot(to_face), -normal_vec.Dot(to_face)
-                            )
-
-                    # Composite score: clearness (2 or 1) * 1000 + outward_score (0-1) * 100
-                    # This prioritizes clearness first, then outward direction as tiebreaker
-                    composite_score = clear_count * 1000 + outward_score * 100
-
-                    face_candidates.append(
-                        (
-                            face_nt,
-                            area,
-                            clear_count,
-                            outward_score,
-                            composite_score,
-                            face_idx,
-                            debug_info,
-                        )
-                    )
+                # If largest face is significantly bigger (>10% more area), just use it
+                if area1 > area2 * 1.1:
+                    selected_face = face1
+                    selected_area = area1
                     logger.debug(
-                        f"    Face #{face_idx+1}: area={area:.2f} clearness={clear_count} outward={outward_score:.2f} score={composite_score:.1f} {debug_info}"
+                        f"    Selected largest face: area={area1:.2f} (>10% bigger than #2)"
                     )
                 else:
+                    # Areas are close — pick by outward score
+                    if score1 >= score2:
+                        selected_face = face1
+                        selected_area = area1
+                    else:
+                        selected_face = face2
+                        selected_area = area2
                     logger.debug(
-                        f"    ✗ Skipped face #{face_idx+1}: area={area:.2f} (internal) {debug_info}"
+                        f"    Selected by outward score: face1={score1:.3f} face2={score2:.3f}, chose {'#1' if score1 >= score2 else '#2'}"
                     )
-
-            # Select the face with best composite score
-            if face_candidates:
-                # Sort by composite score (highest first)
-                face_candidates.sort(key=lambda x: x[4], reverse=True)
-                (
-                    selected_face,
-                    selected_area,
-                    clearness,
-                    outward,
-                    score,
-                    selected_idx,
-                    selected_debug,
-                ) = face_candidates[0]
-                logger.debug(
-                    f"    ✓ Selected face #{selected_idx+1}: area={selected_area:.2f} clearness={clearness} outward={outward:.2f} {selected_debug}"
-                )
-
-            # If neither of the two largest faces is external, fall back to largest
-            if selected_face is None and face_areas:
-                selected_area, selected_face = face_areas[0]
-                logger.debug(
-                    f"    Fallback: selected largest face area={selected_area:.2f}"
-                )
 
             # Add the selected face to highlights
             if selected_face is not None:
@@ -603,125 +529,39 @@ class SelectionManager:
         logger.info(f"Selected {count} largest external faces (one per part)")
 
     def _calculate_assembly_center(self, parts_list: List[Tuple]) -> gp_Pnt:
-        """Calculate the center point of the entire assembly."""
+        """Calculate the center point of the entire assembly using cached face centroids."""
         total_x = 0.0
         total_y = 0.0
         total_z = 0.0
         count = 0
 
         for part in parts_list:
-            props = GProp_GProps()
-            brepgprop.VolumeProperties(part.shape, props)
-            center = props.CentreOfMass()
-            total_x += center.X()
-            total_y += center.Y()
-            total_z += center.Z()
-            count += 1
+            if part.faces:
+                largest = max(part.faces, key=lambda f: f.area)
+                total_x += largest.centroid[0]
+                total_y += largest.centroid[1]
+                total_z += largest.centroid[2]
+                count += 1
 
         if count > 0:
             return gp_Pnt(total_x / count, total_y / count, total_z / count)
         return gp_Pnt(0, 0, 0)
 
-    def _is_face_external_to_assembly(self, face, all_solids: List):
+    @staticmethod
+    def _outward_score(face_nt, assembly_origin: gp_Pnt) -> float:
+        """Score how much a face normal points outward from the assembly center.
+
+        Returns a value in [0, 1] where 1 means the normal is perfectly aligned
+        with the vector from assembly center to face centroid.
         """
-        Check if a face is external to the assembly using raycast in both directions.
-
-        Since face normal direction is arbitrary, we check both directions
-        and return True if at least one direction is clear (external to the model).
-
-        Args:
-            face: The face to check
-            all_solids: List of all solids in the assembly to check against
-
-        Returns:
-            Tuple of (is_external: bool, debug_info: str, clear_direction_count: int)
-            - is_external: True if at least one direction is clear
-            - debug_info: String describing raycast results
-            - clear_direction_count: 0, 1, or 2 - number of clear directions (2 is best)
-        """
-        if not all_solids:
-            return True, "", 2
-
-        try:
-            # Get face properties
-            props = GProp_GProps()
-            brepgprop.SurfaceProperties(face, props)
-            face_center = props.CentreOfMass()
-
-            # Get face normal at center
-            surface = BRepAdaptor_Surface(face)
-            u_min, u_max, v_min, v_max = (
-                surface.FirstUParameter(),
-                surface.LastUParameter(),
-                surface.FirstVParameter(),
-                surface.LastVParameter(),
-            )
-            u_mid = (u_min + u_max) / 2.0
-            v_mid = (v_min + v_max) / 2.0
-
-            # Get point and normal at middle of face
-            pnt = gp_Pnt()
-            vec_u = gp_Vec()
-            vec_v = gp_Vec()
-            surface.D1(u_mid, v_mid, pnt, vec_u, vec_v)
-
-            # Calculate normal (cross product of tangent vectors)
-            normal = vec_u.Crossed(vec_v)
-            if normal.Magnitude() < 1e-7:
-                return True, "", 2  # Can't determine, assume external
-
-            normal.Normalize()
-
-            # Check both directions (normal and -normal)
-            # Use a dynamic threshold: at least 2.5x the material thickness, with a minimum of 5mm
-            # This ensures we skip the opposite face of thin parts
-            threshold = max(self.config.MATERIAL_THICKNESS_MM * 2.5, 5.0)
-            hits_info = []
-            clear_count = 0
-
-            # Check BOTH directions fully (don't early return)
-            for direction_multiplier in [1.0, -1.0]:
-                ray_dir = gp_Dir(
-                    normal.X() * direction_multiplier,
-                    normal.Y() * direction_multiplier,
-                    normal.Z() * direction_multiplier,
-                )
-                ray = gp_Lin(gp_Ax1(face_center, ray_dir))
-
-                # Cast ray against all solids in assembly
-                has_hit = False
-                closest_hit_dist = None
-
-                for solid in all_solids:
-                    inter = BRepIntCurveSurface_Inter()
-                    inter.Init(solid, ray, 1e-7)
-
-                    # Check if there's any intersection in front
-                    while inter.More():
-                        w_param = inter.W()
-                        # Skip intersections within material thickness to avoid detecting
-                        # the opposite face of thin parts. Use 2x thickness for safety.
-                        if w_param > threshold:
-                            has_hit = True
-                            if closest_hit_dist is None or w_param < closest_hit_dist:
-                                closest_hit_dist = w_param
-                        inter.Next()
-
-                    if has_hit:
-                        break
-
-                dir_name = "+normal" if direction_multiplier > 0 else "-normal"
-                if has_hit:
-                    hits_info.append(f"{dir_name}:hit@{closest_hit_dist:.1f}mm")
-                else:
-                    hits_info.append(f"{dir_name}:clear")
-                    clear_count += 1
-
-            # Face is external if at least one direction is clear
-            is_external = clear_count > 0
-            return is_external, f"[{', '.join(hits_info)}]", clear_count
-
-        except Exception as e:
-            # If we can't determine, assume it's external (conservative approach)
-            # print(f"Warning: Could not determine if face is external: {e}")
-            return True, f"[error: {e}]", 2
+        nv = gp_Vec(face_nt.normal[0], face_nt.normal[1], face_nt.normal[2])
+        if nv.Magnitude() < 1e-7:
+            return 0.0
+        nv.Normalize()
+        fc = gp_Pnt(face_nt.centroid[0], face_nt.centroid[1], face_nt.centroid[2])
+        to_face = gp_Vec(assembly_origin, fc)
+        if to_face.Magnitude() < 1e-7:
+            return 0.0
+        to_face.Normalize()
+        # Use max of both directions since face normal orientation is arbitrary
+        return max(nv.Dot(to_face), -nv.Dot(to_face))

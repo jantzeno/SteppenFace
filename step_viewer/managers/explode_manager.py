@@ -133,7 +133,7 @@ class ExplodeManager:
             part.ais_colored_shape.SetLocalTransformation(trsf)
 
             # Update display
-            display.Context.Redisplay(part.ais_colored_shape, True)
+            # We don't need to call Redisplay (which is slow) for simple translation
 
         # Refresh display
         display.Context.UpdateCurrentViewer()

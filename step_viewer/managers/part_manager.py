@@ -24,6 +24,7 @@ class Face(NamedTuple):
     shape: TopoDS_Face
     global_index: int  # 1-based sequential across all parts
     part_index: int  # 0-based index of owning part
+    part_face_index: int  # 1-based index within the owning part
     fingerprint: str  # Stable 64-bit geometry hash
     area: float
     centroid: Tuple[float, float, float]  # (x, y, z)
@@ -76,12 +77,15 @@ class PartManager:
 
         for part_idx, part in enumerate(parts):
             faces = []
+            part_face_idx = 1
 
             if part.shape:
                 exp = TopExp_Explorer(part.shape, TopAbs_FACE)
                 while exp.More():
                     face_shape = exp.Current()
-                    face_props = self._compute_face_properties(face_shape, part_idx, global_face_idx)
+                    face_props = self._compute_face_properties(
+                        face_shape, part_idx, global_face_idx, part_face_idx
+                    )
                     faces.append(face_props)
 
                     # Store in lookup maps
@@ -90,6 +94,7 @@ class PartManager:
                     self._face_by_fingerprint[face_props.fingerprint] = face_props
 
                     global_face_idx += 1
+                    part_face_idx += 1
                     exp.Next()
 
             # Create new Part with faces tuple
@@ -97,7 +102,7 @@ class PartManager:
                 shape=part.shape,
                 pallete=part.pallete,
                 ais_colored_shape=part.ais_colored_shape,
-                faces=tuple(faces)
+                faces=tuple(faces),
             )
             parts_with_faces.append(part_with_faces)
 
@@ -112,7 +117,13 @@ class PartManager:
     def get_face_key(self, face) -> int:
         return face.__hash__()
 
-    def _compute_face_properties(self, face_shape: TopoDS_Face, part_index: int, global_index: int) -> Face:
+    def _compute_face_properties(
+        self,
+        face_shape: TopoDS_Face,
+        part_index: int,
+        global_index: int,
+        part_face_index: int,
+    ) -> Face:
         """
         Compute all properties for a face and return a Face namedtuple.
 
@@ -120,6 +131,7 @@ class PartManager:
             face_shape: The TopoDS_Face to analyze
             part_index: The index of the owning part
             global_index: The global 1-based face index
+            part_face_index: The 1-based index within the owning part
 
         Returns:
             Face namedtuple with all properties computed
@@ -129,7 +141,11 @@ class PartManager:
         brepgprop.SurfaceProperties(face_shape, props)
         area = float(props.Mass())
         centroid_pt = props.CentreOfMass()
-        centroid = (float(centroid_pt.X()), float(centroid_pt.Y()), float(centroid_pt.Z()))
+        centroid = (
+            float(centroid_pt.X()),
+            float(centroid_pt.Y()),
+            float(centroid_pt.Z()),
+        )
 
         # Compute fingerprint
         fingerprint = self._compute_fingerprint(face_shape)
@@ -147,15 +163,18 @@ class PartManager:
             shape=face_shape,
             global_index=global_index,
             part_index=part_index,
+            part_face_index=part_face_index,
             fingerprint=fingerprint,
             area=area,
             centroid=centroid,
             normal=normal,
             is_planar=is_planar,
-            is_external=is_external
+            is_external=is_external,
         )
 
-    def _compute_face_normal(self, face_shape: TopoDS_Face, point) -> Tuple[float, float, float]:
+    def _compute_face_normal(
+        self, face_shape: TopoDS_Face, point
+    ) -> Tuple[float, float, float]:
         """
         Compute the normal vector at the center of the face using surface parameters.
 
